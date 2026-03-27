@@ -1,0 +1,3 @@
+display_name: ZenTao Acceptance Closure Module
+short_description: Read-only SOP phase 8 checks for acceptance overview, go-live checklist, and closure readiness.
+default_prompt: Use the acceptance-closure module inside openclaw-zentao-pack. First aggregate acceptance overview, go-live checklist, and closure readiness from verified ZenTao views before proposing any close-out action.

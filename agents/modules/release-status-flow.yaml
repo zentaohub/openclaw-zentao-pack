@@ -1,0 +1,4 @@
+---
+display_name: ZenTao Release Status Flow Module
+short_description: Update release status through verified ZenTao release edit flow.
+default_prompt: Use the release-status-flow module inside openclaw-zentao-pack. Inspect the target release first, then update its status through the verified release edit flow while preserving the correct system value.

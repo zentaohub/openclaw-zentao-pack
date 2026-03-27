@@ -1,0 +1,392 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { request as httpsRequest } from "node:https";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { URL } from "node:url";
+import { type JsonObject, type JsonValue, loadConfig } from "./zentao_client";
+
+const DEFAULT_WECOM_API_BASE_URL = "https://qyapi.weixin.qq.com";
+const TOKEN_CACHE_PATH = join(tmpdir(), "openclaw-zentao-wecom-token.json");
+const TOKEN_REFRESH_BUFFER_MS = 60_000;
+
+interface WecomConfig {
+  api_base_url?: string;
+  corp_id?: string;
+  corp_secret?: string;
+  contact_secret?: string;
+  agent_id?: string | number;
+  auto_sync_user?: boolean;
+  root_department_id?: string | number;
+}
+
+interface WecomTokenCache {
+  accessToken: string;
+  expiresAt: number;
+}
+
+export interface WecomDirectoryUser extends JsonObject {
+  userid?: string;
+  name?: string;
+  alias?: string;
+  email?: string;
+  mobile?: string;
+  telephone?: string;
+  gender?: string | number;
+  department?: JsonValue;
+  position?: string;
+  status?: string | number;
+  enable?: number;
+  is_leader_in_dept?: JsonValue;
+  main_department?: number;
+}
+
+export interface WecomDepartment extends JsonObject {
+  id?: number;
+  name?: string;
+  name_en?: string;
+  parentid?: number;
+  order?: number;
+}
+
+interface WecomApiResponse extends JsonObject {
+  errcode?: number;
+  errmsg?: string;
+}
+
+interface WecomDepartmentListResponse extends WecomApiResponse {
+  department?: JsonValue;
+}
+
+interface WecomUserListResponse extends WecomApiResponse {
+  userlist?: JsonValue;
+}
+
+function readWecomConfig(): WecomConfig {
+  const config = loadConfig() as JsonObject;
+  const rawWecom = config.wecom;
+  if (!rawWecom || typeof rawWecom !== "object" || Array.isArray(rawWecom)) {
+    return {};
+  }
+  return rawWecom as WecomConfig;
+}
+
+function parseJson<T>(text: string, label: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    throw new Error(`Failed to parse JSON from ${label}: ${(error as Error).message}`);
+  }
+}
+
+function normalizeBaseUrl(url: string | undefined): string {
+  return (url ?? DEFAULT_WECOM_API_BASE_URL).replace(/\/+$/, "");
+}
+
+function createHttpsGetJson(requestUrl: string): Promise<WecomApiResponse> {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      requestUrl,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          const bodyText = Buffer.concat(chunks).toString("utf8");
+          if ((response.statusCode ?? 500) < 200 || (response.statusCode ?? 500) >= 300) {
+            reject(
+              new Error(
+                `WeCom request failed with status ${response.statusCode ?? 500}: ${bodyText}`,
+              ),
+            );
+            return;
+          }
+          try {
+            resolve(parseJson<WecomApiResponse>(bodyText, requestUrl));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function ensureOk<T extends WecomApiResponse>(response: T, action: string): T {
+  if ((response.errcode ?? 0) !== 0) {
+    throw new Error(
+      `WeCom ${action} failed: ${response.errcode ?? "unknown"} ${response.errmsg ?? ""}`.trim(),
+    );
+  }
+  return response;
+}
+
+export class WecomClient {
+  private readonly apiBaseUrl: string;
+
+  private readonly corpId?: string;
+
+  private readonly corpSecret?: string;
+
+  private readonly contactSecret?: string;
+
+  readonly rootDepartmentId: number;
+
+  readonly autoSyncUser: boolean;
+
+  constructor(options?: WecomConfig) {
+    const config = readWecomConfig();
+    this.apiBaseUrl = normalizeBaseUrl(
+      options?.api_base_url ??
+        process.env.WECOM_API_BASE_URL ??
+        process.env.WXWORK_API_BASE_URL ??
+        config.api_base_url,
+    );
+    this.corpId =
+      options?.corp_id ??
+      process.env.WECOM_CORP_ID ??
+      process.env.WXWORK_CORP_ID ??
+      config.corp_id;
+    this.contactSecret =
+      options?.contact_secret ??
+      process.env.WECOM_CONTACT_SECRET ??
+      process.env.WXWORK_CONTACT_SECRET ??
+      config.contact_secret;
+    this.corpSecret =
+      options?.corp_secret ??
+      process.env.WECOM_CORP_SECRET ??
+      process.env.WXWORK_CORP_SECRET ??
+      config.corp_secret;
+    this.rootDepartmentId = normalizePositiveInteger(
+      options?.root_department_id ??
+        process.env.WECOM_ROOT_DEPARTMENT_ID ??
+        process.env.WXWORK_ROOT_DEPARTMENT_ID ??
+        config.root_department_id,
+      1,
+    );
+    this.autoSyncUser = normalizeBoolean(
+      options?.auto_sync_user ??
+        process.env.WECOM_AUTO_SYNC_USER ??
+        process.env.WXWORK_AUTO_SYNC_USER ??
+        config.auto_sync_user,
+      true,
+    );
+  }
+
+  isConfigured(): boolean {
+    return Boolean(this.corpId && this.getEffectiveSecret());
+  }
+
+  async getUser(userid: string): Promise<WecomDirectoryUser> {
+    const normalizedUserid = userid.trim();
+    if (!normalizedUserid) {
+      throw new Error("WeCom userid cannot be empty");
+    }
+    const accessToken = await this.getAccessToken();
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/user/get`);
+    url.searchParams.set("access_token", accessToken);
+    url.searchParams.set("userid", normalizedUserid);
+    const response = ensureOk(await createHttpsGetJson(url.toString()), "user.get");
+    return response as WecomDirectoryUser;
+  }
+
+  async listDepartments(departmentId?: number): Promise<WecomDepartment[]> {
+    const accessToken = await this.getAccessToken();
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/department/list`);
+    url.searchParams.set("access_token", accessToken);
+    if (departmentId !== undefined) {
+      url.searchParams.set("id", String(departmentId));
+    }
+    const response = ensureOk(
+      await createHttpsGetJson(url.toString()),
+      "department.list",
+    ) as WecomDepartmentListResponse;
+    return extractDepartmentList(response.department);
+  }
+
+  async listDepartmentUsers(
+    departmentId: number,
+    options?: {
+      fetchChild?: boolean;
+      includeInactive?: boolean;
+    },
+  ): Promise<WecomDirectoryUser[]> {
+    const accessToken = await this.getAccessToken();
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/user/list`);
+    url.searchParams.set("access_token", accessToken);
+    url.searchParams.set("department_id", String(departmentId));
+    url.searchParams.set("fetch_child", options?.fetchChild === false ? "0" : "1");
+    const response = ensureOk(
+      await createHttpsGetJson(url.toString()),
+      "user.list",
+    ) as WecomUserListResponse;
+    const users = extractUserList(response.userlist);
+    if (options?.includeInactive) {
+      return users;
+    }
+    return users.filter(isActiveWecomUser);
+  }
+
+  async listUsersByDepartments(
+    departmentIds: number[],
+    options?: {
+      fetchChild?: boolean;
+      includeInactive?: boolean;
+    },
+  ): Promise<WecomDirectoryUser[]> {
+    const uniqueIds = Array.from(
+      new Set(
+        departmentIds
+          .map((item) => normalizePositiveInteger(item, 0))
+          .filter((item) => item > 0),
+      ),
+    );
+    const userMap = new Map<string, WecomDirectoryUser>();
+
+    for (const departmentId of uniqueIds) {
+      const users = await this.listDepartmentUsers(departmentId, options);
+      for (const user of users) {
+        const userid = typeof user.userid === "string" ? user.userid.trim() : "";
+        if (!userid) {
+          continue;
+        }
+        if (!userMap.has(userid)) {
+          userMap.set(userid, user);
+        }
+      }
+    }
+
+    return Array.from(userMap.values());
+  }
+
+  private async getAccessToken(): Promise<string> {
+    const cached = this.readTokenCache();
+    if (cached && cached.expiresAt > Date.now() + TOKEN_REFRESH_BUFFER_MS) {
+      return cached.accessToken;
+    }
+
+    const effectiveSecret = this.getEffectiveSecret();
+    if (!this.corpId || !effectiveSecret) {
+      throw new Error(
+        "Missing WeCom credentials. Fill wecom.corp_id and wecom.contact_secret (or wecom.corp_secret) in config.json.",
+      );
+    }
+
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/gettoken`);
+    url.searchParams.set("corpid", this.corpId);
+    url.searchParams.set("corpsecret", effectiveSecret);
+
+    const response = ensureOk(await createHttpsGetJson(url.toString()), "gettoken");
+    const accessToken =
+      typeof response.access_token === "string" ? response.access_token.trim() : "";
+    const expiresIn =
+      typeof response.expires_in === "number" && Number.isFinite(response.expires_in)
+        ? response.expires_in
+        : 7200;
+
+    if (!accessToken) {
+      throw new Error("WeCom gettoken succeeded but access_token is empty");
+    }
+
+    const cache: WecomTokenCache = {
+      accessToken,
+      expiresAt: Date.now() + expiresIn * 1000,
+    };
+    writeFileSync(TOKEN_CACHE_PATH, JSON.stringify(cache, null, 2), "utf8");
+    return accessToken;
+  }
+
+  private getEffectiveSecret(): string | undefined {
+    return this.contactSecret ?? this.corpSecret;
+  }
+
+  private readTokenCache(): WecomTokenCache | null {
+    if (!existsSync(TOKEN_CACHE_PATH)) {
+      return null;
+    }
+
+    try {
+      const raw = readFileSync(TOKEN_CACHE_PATH, "utf8");
+      const parsed = parseJson<WecomTokenCache>(raw, TOKEN_CACHE_PATH);
+      if (!parsed.accessToken || !parsed.expiresAt) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function normalizeBoolean(value: boolean | string | undefined, fallback: boolean): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "y", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["0", "false", "no", "n", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function normalizePositiveInteger(
+  value: number | string | undefined,
+  fallback: number,
+): number {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function extractDepartmentList(value: JsonValue | undefined): WecomDepartment[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isJsonObject) as WecomDepartment[];
+}
+
+function extractUserList(value: JsonValue | undefined): WecomDirectoryUser[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isJsonObject) as WecomDirectoryUser[];
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isActiveWecomUser(user: WecomDirectoryUser): boolean {
+  if (typeof user.enable === "number" && user.enable !== 1) {
+    return false;
+  }
+
+  if (typeof user.status === "number") {
+    return user.status === 1;
+  }
+
+  if (typeof user.status === "string" && user.status.trim()) {
+    return user.status.trim() === "1";
+  }
+
+  return true;
+}

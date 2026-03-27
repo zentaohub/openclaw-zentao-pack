@@ -1,0 +1,3 @@
+display_name: ZenTao Project Iteration Setup Module
+short_description: Read-only SOP phase 4 checks for projects, executions, and execution-linked stories.
+default_prompt: Use the project-iteration-setup module inside openclaw-zentao-pack. First inspect projects, executions, and execution-linked stories through verified Web JSON routes before proposing any creation or scheduling change.

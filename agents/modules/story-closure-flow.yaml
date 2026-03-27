@@ -1,0 +1,4 @@
+---
+display_name: ZenTao Story Closure Flow Module
+short_description: Close and reactivate stories through verified ZenTao Web form routes.
+default_prompt: Use the story-closure-flow module inside openclaw-zentao-pack. Validate the target story first, then close or reactivate it through the verified Web form flow using explicit close reasons and assignee values.

@@ -1,0 +1,3 @@
+display_name: ZenTao User Sync Module
+short_description: Sync WeCom directory users into ZenTao with safe validation support.
+default_prompt: Use the user-sync module inside openclaw-zentao-pack. Prefer validate-only first, then perform single-user or department sync only after inputs and side effects are clear.

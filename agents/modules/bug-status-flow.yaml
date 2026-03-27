@@ -1,0 +1,4 @@
+---
+display_name: ZenTao Bug Status Flow Module
+short_description: Resolve, close, and reactivate bugs through verified ZenTao Web form routes.
+default_prompt: Use the bug-status-flow module inside openclaw-zentao-pack. Validate the target bug first, then update it through the verified Web form flow using explicit resolution, build, and assignee values when required.

@@ -1,0 +1,3 @@
+display_name: ZenTao Task Status Flow Module
+short_description: Update task status through validated ZenTao Web form routes.
+default_prompt: Use the task-status-flow module inside openclaw-zentao-pack. Prefer validating the target task details first, then update status through the verified Web form flow with explicit consumed and left hours when needed.

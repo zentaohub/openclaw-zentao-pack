@@ -1,0 +1,4 @@
+---
+display_name: ZenTao Story Review Flow Module
+short_description: Create, inspect, and review product stories through verified ZenTao Web flows.
+default_prompt: Use the story-review-flow module inside openclaw-zentao-pack. Create or inspect product stories through verified Web form and JSON routes, and use explicit review results when submitting story reviews.

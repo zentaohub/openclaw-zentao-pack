@@ -1,0 +1,61 @@
+{
+  "base_url": "http://zentao.lsym.cn/",
+  "api_base_url": "http://zentao.lsym.cn/",
+  "account": "bot-service-account",
+  "password": "bot-service-password",
+  "userid": "wecom-userid-for-local-debug",
+  "verify_ssl": true,
+  "user_match": {
+    "fields": ["userid", "userId", "wecomUserId", "wecom_userid", "account"],
+    "browse": "",
+    "limit": 100
+  },
+  "user_sync": {
+    "default_password": "ChangeMe123!",
+    "default_role": "dev",
+    "default_group": 2,
+    "default_visions": ["rnd"],
+    "default_dept": 1
+  },
+  "wecom": {
+    "api_base_url": "https://qyapi.weixin.qq.com",
+    "corp_id": "wwxxxxxxxxxxxxxxxx",
+    "corp_secret": "your-wecom-contact-secret",
+    "agent_id": 1000001,
+    "auto_sync_user": true,
+    "root_department_id": 1
+  },
+  "web_routes": {
+    "my_task_assigned": "/my-work-task-assignedTo.html",
+    "my_bug_assigned": "/my-work-bug-assignedTo.html"
+  },
+  "debug": {
+    "stop_on_failure": false,
+    "tests": [
+      {
+        "name": "login-smoke",
+        "action": "login"
+      },
+      {
+        "name": "execution-progress",
+        "action": "get_progress",
+        "entity_type": "execution",
+        "entity_id": 45,
+        "include_children": true
+      },
+      {
+        "name": "my-tasks",
+        "action": "get_my_tasks"
+      },
+      {
+        "name": "update-task-status",
+        "action": "update_task_status",
+        "task_id": 123,
+        "payload": {
+          "status": "doing",
+          "comment": "TypeScript API debug run"
+        }
+      }
+    ]
+  }
+}
