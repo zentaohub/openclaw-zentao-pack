@@ -153,6 +153,43 @@ OPENCLAW_ZENTAO_CONFIG_PATH=/root/.openclaw/private/zentao.config.json \
 ./deploy.example.sh
 ```
 
+如果服务器只保留 OpenClaw 实际运行目录，不单独保留一份源码目录，可以直接在运行目录使用手动更新脚本：
+
+```bash
+chmod +x deploy.server.sh
+./deploy.server.sh
+```
+
+默认会更新这个目录：
+
+```text
+/root/.openclaw/workspace/skills/openclaw-zentao-pack
+```
+
+默认会读取这个私有配置：
+
+```text
+/root/.openclaw/private/zentao.config.json
+```
+
+如果分支或配置路径不同，可以这样执行：
+
+```bash
+BRANCH=main \
+OPENCLAW_ZENTAO_CONFIG_PATH=/root/.openclaw/private/zentao.config.json \
+./deploy.server.sh
+```
+
+这个脚本会顺序执行：
+
+```bash
+git fetch origin <branch>
+git checkout <branch>
+git pull --ff-only origin <branch>
+npm install
+npm run build
+```
+
 说明：
 
 - 这样做时通常不需要提交 `dist/`，因为每次更新后都会在目标服务器重新构建。
