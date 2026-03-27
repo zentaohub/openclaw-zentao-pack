@@ -155,9 +155,32 @@ OPENCLAW_ZENTAO_CONFIG_PATH=/root/.openclaw/private/zentao.config.json \
 
 如果服务器只保留 OpenClaw 实际运行目录，不单独保留一份源码目录，可以直接在运行目录使用手动更新脚本：
 
+### 服务器更新操作
+
 ```bash
 chmod +x deploy.server.sh
 ./deploy.server.sh
+```
+
+推荐首次在服务器执行一次权限补充：
+
+```bash
+cd /root/.openclaw/workspace/skills/openclaw-zentao-pack
+chmod +x deploy.example.sh deploy.server.sh
+```
+
+之后每次你本地提交了新代码并 push 到远端仓库后，到服务器执行：
+
+```bash
+cd /root/.openclaw/workspace/skills/openclaw-zentao-pack
+./deploy.server.sh
+```
+
+如果忘了补执行权限，也可以直接用 bash 执行：
+
+```bash
+cd /root/.openclaw/workspace/skills/openclaw-zentao-pack
+bash deploy.server.sh
 ```
 
 默认会更新这个目录：

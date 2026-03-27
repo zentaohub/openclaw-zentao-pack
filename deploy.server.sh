@@ -24,6 +24,25 @@ echo "[update] config: $OPENCLAW_ZENTAO_CONFIG_PATH"
 
 cd "$REPO_DIR"
 
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
+  echo "[update] switching branch: $CURRENT_BRANCH -> $BRANCH"
+fi
+
+DIRTY_FILES="$(git status --porcelain --untracked-files=no)"
+if [ -n "$DIRTY_FILES" ]; then
+  NON_LOCK_DIRTY="$(printf '%s\n' "$DIRTY_FILES" | grep -v ' package-lock.json$' || true)"
+  if [ -n "$NON_LOCK_DIRTY" ]; then
+    echo "[update] working tree has local changes:" >&2
+    printf '%s\n' "$NON_LOCK_DIRTY" >&2
+    echo "[update] aborting to avoid overwriting local modifications" >&2
+    exit 1
+  fi
+
+  echo "[update] reverting package-lock.json before pull"
+  git checkout -- package-lock.json
+fi
+
 echo "[update] fetching latest code"
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
