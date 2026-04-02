@@ -1,28 +1,29 @@
 ---
 name: test-execution-flow
-description: SOP Step 17 link testcases to a testtask and run them.
+description: 测试执行模块，用于把测试用例挂到测试单并提交执行结果。
 ---
 
-# Test Execution Flow Module
+# 测试执行模块
 
-## Purpose
+## 目的
 
-Implements SOP Step 17 by linking cases into a ZenTao test task, querying run rows, and submitting a run result.
+用于 SOP Step 17 一类的测试执行场景，包括把用例关联到测试单、查看执行记录，以及提交执行结果。
 
-## Commands
+## 脚本
 
-- `scripts/link_testtask_cases.ts`
+- `scripts/actions/link_testtask_cases.ts`
 - `scripts/queries/query_testtask_cases.ts`
-- `scripts/run_testtask_case.ts`
+- `scripts/actions/run_testtask_case.ts`
 
-## Usage
+## 常用命令
 
 - `npm run link-testtask-cases -- --testtask 1 --cases 1`
 - `npm run query-testtask-cases -- --testtask 1`
 - `npm run run-testtask-case -- --run 1 --result pass --real "case passed in validation"`
 
-## Notes
+## 说明
 
-- Link route: `testtask-linkCase-{taskId}-all-0-0-100-1.html`
-- Run route: `testtask-runCase-{runId}-{caseId}-{version}.html`
-- Results route: `testtask-results-{runId}-{caseId}-{version}-all-all-0.json`
+- 关联路由：`testtask-linkCase-{taskId}-all-0-0-100-1.html`
+- 执行路由：`testtask-runCase-{runId}-{caseId}-{version}.html`
+- 结果路由：`testtask-results-{runId}-{caseId}-{version}-all-all-0.json`
+- 当前能力仍有效，但主入口通常直接通过动作脚本和意图路由触发。

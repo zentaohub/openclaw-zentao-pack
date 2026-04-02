@@ -1,4 +1,4 @@
 ---
-display_name: ZenTao Team Setup Flow Module
-short_description: Inspect project/execution teams and add members through verified manage-members flows.
-default_prompt: Use the team-setup-flow module inside openclaw-zentao-pack. Inspect the current team first, then add members through the verified manage-members form while preserving existing members.
+display_name: 禅道团队配置流程模块
+short_description: 查看项目/执行团队，并通过已验证的成员管理流程添加成员。
+default_prompt: 使用 openclaw-zentao-pack 内的 team-setup-flow 模块。先检查当前团队，再通过已验证的成员管理表单添加成员，并确保保留已有成员。

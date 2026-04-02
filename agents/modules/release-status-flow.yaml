@@ -1,4 +1,4 @@
 ---
-display_name: ZenTao Release Status Flow Module
-short_description: Update release status through verified ZenTao release edit flow.
-default_prompt: Use the release-status-flow module inside openclaw-zentao-pack. Inspect the target release first, then update its status through the verified release edit flow while preserving the correct system value.
+display_name: 禅道发布状态流转模块
+short_description: 通过已验证的禅道发布编辑流程更新发布状态。
+default_prompt: 使用 openclaw-zentao-pack 内的 release-status-flow 模块。先检查目标发布，再通过已验证的发布编辑流程更新状态，并保留系统要求的正确内部状态值。

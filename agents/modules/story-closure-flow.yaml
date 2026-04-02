@@ -1,4 +1,4 @@
 ---
-display_name: ZenTao Story Closure Flow Module
-short_description: Close and reactivate stories through verified ZenTao Web form routes.
-default_prompt: Use the story-closure-flow module inside openclaw-zentao-pack. Validate the target story first, then close or reactivate it through the verified Web form flow using explicit close reasons and assignee values.
+display_name: 禅道需求关闭流程模块
+short_description: 通过已验证的禅道 Web 表单流程关闭和激活需求。
+default_prompt: 使用 openclaw-zentao-pack 内的 story-closure-flow 模块。先校验目标需求，再通过已验证的 Web 表单流程执行关闭或激活；在需要时明确填写关闭原因和指派人。

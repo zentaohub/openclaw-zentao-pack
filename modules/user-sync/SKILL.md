@@ -3,7 +3,7 @@ name: user-sync
 description: 用户同步模块。用于把企业微信用户信息同步到禅道，支持单用户、部门批量和全组织同步。
 ---
 
-# User Sync Module
+# 用户同步模块
 
 ## 目标
 

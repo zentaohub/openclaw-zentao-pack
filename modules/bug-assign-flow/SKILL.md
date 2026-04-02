@@ -1,26 +1,27 @@
 ---
 name: bug-assign-flow
-description: Assign ZenTao bugs during the development repair stage.
+description: Bug 指派模块，用于在研发修复阶段把待处理 Bug 明确指派给负责人。
 ---
 
-# Bug Assign Flow Module
+# Bug 指派模块
 
-## Purpose
+## 目的
 
-Implements a key SOP Step 18 action by assigning an active bug to a developer for repair.
+用于 SOP 修复阶段的 Bug 指派场景，帮助把活跃 Bug 明确分配给具体研发负责人继续处理。
 
-## Commands
+## 脚本
 
-- `scripts/assign_bug.ts`
+- `scripts/actions/assign_bug.ts`
 - `scripts/queries/query_bug_detail.ts`
 
-## Usage
+## 常用命令
 
 - `npm run assign-bug -- --bug 4 --assigned-to LengLeng --comment "repair owner set in validation"`
 - `npm run query-bug-detail -- --bug 4`
 
-## Notes
+## 说明
 
-- Assign route: `bug-assignTo-{id}.html`
-- Core field: `assignedTo`
-- Optional fields: `comment`, `mailto`
+- 指派路由：`bug-assignTo-{id}.html`
+- 核心字段：`assignedTo`
+- 可选字段：`comment`、`mailto`
+- 当前能力仍有效，但主入口更偏向通过意图路由直接调用 `assign-bug` 动作，而不是单独依赖模块名触发。

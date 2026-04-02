@@ -1,4 +1,4 @@
-﻿---
-display_name: ZenTao Robot Prompt Governance
-short_description: Combine Prompt.json, system prompts, and output wrappers into one stable response standard.
-default_prompt: Use the robot-prompt-governance module inside openclaw-zentao-pack. Validate commands through Prompt.json, render business content with reply templates, and always wrap the final response in a unified success, no-result, or fail format.
+---
+display_name: 禅道机器人提示治理模块
+short_description: 将 Prompt.json、系统提示和输出包装规则整合为统一且稳定的回复标准。
+default_prompt: 使用 openclaw-zentao-pack 内的 robot-prompt-governance 模块。先通过 Prompt.json 校验命令，再结合 reply templates 渲染业务内容，并始终用统一的成功、无结果或失败格式包装最终回复。

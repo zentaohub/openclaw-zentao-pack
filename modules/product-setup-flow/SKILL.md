@@ -1,42 +1,40 @@
 ---
 name: product-setup-flow
-description: Product manager flow for creating a product and initializing product modules with strict module constraints.
+description: 产品初始化模块，用于创建产品并初始化产品模块，同时严格校验模块约束。
 ---
 
-# Product Setup Flow Module
+# 产品初始化模块
 
-## Purpose
+## 目的
 
-Support product-manager actions for:
+支持产品经理相关动作，包括：
 
-- creating a product
-- initializing product modules
-- reporting unsupported product fields clearly
-- enforcing product-module constraints before submit
+- 创建产品
+- 初始化产品模块
+- 明确报告当前系统不支持写入的产品字段
+- 在提交前严格校验产品模块约束
 
-## Scripts
+## 脚本
 
 - `scripts/create_product.ts`
 - `scripts/create_product_modules.ts`
 - `scripts/create_product_with_modules.ts`
 
-## Commands
+## 常用命令
 
 - `npm run create-product -- --name SmartSupport --po admin --qd admin --rd admin`
 - `npm run create-product-modules -- --product 3 --modules Workbench,TicketCenter,KnowledgeBase,Reports`
 - `npm run create-product-with-modules -- --name SmartSupport --po admin --qd admin --rd admin --modules Workbench,TicketCenter,KnowledgeBase,Reports`
 
-## Product Module Constraints
+## 产品模块约束
 
-- module names in the same request must be unique
-- if the target product already contains the same module name, reject before submit and list the conflicting names
-- create the product first, then create modules
-- module owners can be resolved in this order: real ZenTao account, real ZenTao display name, configured `user_aliases`
-- if the current ZenTao create form does not support a field such as `code`, report that it was not written
+- 同一次请求中的模块名必须唯一
+- 如果目标产品下已经存在同名模块，提交前应拒绝并列出冲突模块名
+- 必须先创建产品，再创建模块
+- 模块负责人优先使用真实禅道账号；如无法匹配现有禅道用户，应要求用户手动提供工号或禅道账号
+- 如果当前禅道创建表单不支持某个字段，例如 `code`，必须明确提示该字段未写入
 
-## Notes
+## 说明
 
-- current product create form supports name, type, workflow, owners, description, and ACL
-- current product create form does not directly expose a writable `code` field
-- optional config:
-  `user_aliases`: `{ "产品经理A": "admin", "测试负责人A": "admin" }`
+- 当前产品创建表单支持名称、类型、流程、负责人、描述和访问控制
+- 当前产品创建表单不直接暴露可写的 `code` 字段

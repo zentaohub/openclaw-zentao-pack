@@ -1,28 +1,31 @@
 ---
 name: bug-create-flow
-description: SOP Step 17 submit bug from testing and support Step 18 bug fixing handoff.
+description: Bug 创建模块，用于在测试阶段提交缺陷，并把上下文关联到产品、执行、需求、用例和测试单。
 ---
 
-# Bug Create Flow Module
+# Bug 创建模块
 
-## Purpose
+## 目的
 
-Implements SOP Step 17 bug submission by creating a ZenTao bug linked to product, execution, story, case, and testtask context.
+用于 SOP Step 17 一类的提 Bug 场景，通过创建禅道 Bug 把测试发现的问题沉淀到正式缺陷流程中。
 
-## Commands
+## 脚本
 
-- `scripts/create_bug.ts`
+- `scripts/actions/create_bug.ts`
 - `scripts/queries/query_product_bugs.ts`
 - `scripts/queries/query_bug_detail.ts`
 
-## Usage
+## 常用命令
 
-- `npm run create-bug -- --product 1 --execution 4 --story 2 --case 1 --run 1 --testtask 1 --title "Codex bug validate" --builds 1 --assigned-to admin --severity 3 --pri 3 --steps "Step: failed\nResult: fail\nExpect: pass"`
+- `npm run create-bug -- --product 1 --execution 4 --story 2 --case 1 --run 1 --testtask 1 --title "Codex bug validate" --builds 1 --assigned-to admin --severity 3 --pri 3 --steps "Step: failed
+Result: fail
+Expect: pass"`
 - `npm run query-product-bugs -- --product 1`
 - `npm run query-bug-detail -- --bug 1`
 
-## Notes
+## 说明
 
-- Web route: `bug-create-{product}-{branch}-{extras}.html`
-- Required fields: `product`, `title`, `openedBuild[]`
-- Recommended linkage: `execution`, `story`, `case`, `run`, `testtask`
+- Web 路由：`bug-create-{product}-{branch}-{extras}.html`
+- 必填字段：`product`、`title`、`openedBuild[]`
+- 推荐关联字段：`execution`、`story`、`case`、`run`、`testtask`
+- 当前能力仍有效，并且可由主路由直接触发 `create-bug`。

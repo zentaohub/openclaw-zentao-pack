@@ -1,3 +1,3 @@
-display_name: ZenTao User Sync Module
-short_description: Sync WeCom directory users into ZenTao with safe validation support.
-default_prompt: Use the user-sync module inside openclaw-zentao-pack. Prefer validate-only first, then perform single-user or department sync only after inputs and side effects are clear.
+display_name: 禅道用户同步模块
+short_description: 支持将企微通讯录用户安全同步到禅道，并提供安全校验模式。
+default_prompt: 使用 openclaw-zentao-pack 内的 user-sync 模块。优先先执行仅校验模式；只有当输入和副作用都明确后，才执行单用户或按部门同步。

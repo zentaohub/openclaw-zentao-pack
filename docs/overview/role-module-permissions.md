@@ -25,6 +25,8 @@
 
 ## 3. 角色与模块映射总表
 
+补充原则：角色权限推荐应优先指向主扩展入口模块；已标记 `deprecated / 待收敛` 的模块默认不再作为新能力授权入口。
+
 ### 3.1 viewer
 
 建议可用模块：
@@ -34,7 +36,6 @@
 - task-execution
 - release-go-live
 - acceptance-closure
-- lifecycle-closure-flow
 
 建议限制模块：
 
@@ -72,7 +73,6 @@
 - release-linkage-flow
 - release-go-live
 - acceptance-closure
-- lifecycle-closure-flow
 
 建议限制模块：
 
@@ -95,11 +95,8 @@
 - task-create-flow
 - task-execution
 - task-status-flow
-- task-close-flow
 - bug-assign-flow
 - bug-status-flow
-- bug-regression-flow
-- lifecycle-closure-flow
 
 建议限制模块：
 
@@ -122,12 +119,11 @@
 - project-iteration-setup
 - testcase-create-flow
 - testtask-create-flow
-- testtask-status-flow
 - test-execution-flow
 - test-exit-readiness-flow
 - testing-bugflow
 - bug-create-flow
-- bug-regression-flow
+- bug-status-flow
 - release-go-live
 - acceptance-closure
 
@@ -153,7 +149,6 @@
 - release-status-flow
 - release-go-live
 - acceptance-closure
-- lifecycle-closure-flow
 
 建议限制模块：
 
@@ -176,7 +171,6 @@
 - task-execution
 - release-go-live
 - acceptance-closure
-- lifecycle-closure-flow
 - story-review-flow
 
 建议限制模块：
@@ -210,7 +204,6 @@
 - task-execution
 - release-go-live
 - acceptance-closure
-- lifecycle-closure-flow
 - test-exit-readiness-flow
 
 特点：
@@ -225,15 +218,12 @@
 - story-closure-flow
 - task-create-flow
 - task-status-flow
-- task-close-flow
 - testcase-create-flow
 - testtask-create-flow
-- testtask-status-flow
 - test-execution-flow
 - bug-create-flow
 - bug-assign-flow
 - bug-status-flow
-- bug-regression-flow
 - release-create-flow
 - release-linkage-flow
 - release-status-flow
@@ -247,7 +237,6 @@
 
 - user-sync
 - release-status-flow
-- lifecycle-closure-flow
 - acceptance-closure
 
 特点：
@@ -335,3 +324,14 @@
 - 最后把 action 真正落实到脚本与代码鉴权
 
 这样整个技能包的权限体系才会稳定、可维护、可扩展。
+
+## 8. 当前待收敛模块说明
+
+当前以下模块已标记为 `deprecated / 待收敛`：
+
+- `task-close-flow`：建议向 `task-status-flow` 合并
+- `bug-regression-flow`：建议向 `testing-bugflow` + `bug-status-flow` 合并
+- `testtask-status-flow`：建议向统一测试单能力合并
+- `lifecycle-closure-flow`：建议向 `acceptance-closure` 合并
+
+这些模块暂不删除，但角色推荐与风险分级已优先切换到主扩展入口。后续若真正下线，应同步更新角色映射、权限点说明与路由文档。

@@ -1,4 +1,4 @@
 ---
-display_name: ZenTao Release Create Flow Module
-short_description: Create and inspect releases through verified ZenTao Web form and JSON routes.
-default_prompt: Use the release-create-flow module inside openclaw-zentao-pack. Inspect existing releases first, then create a release through the verified Web form flow with explicit product, name, date, and description.
+display_name: 禅道发布创建流程模块
+short_description: 通过已验证的禅道 Web 表单与 JSON 路由查看并创建发布。
+default_prompt: 使用 openclaw-zentao-pack 内的 release-create-flow 模块。先检查现有发布，再通过已验证的 Web 表单流程创建发布，并明确填写产品、名称、日期和描述。

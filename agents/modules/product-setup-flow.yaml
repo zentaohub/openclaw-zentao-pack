@@ -1,3 +1,3 @@
-display_name: ZenTao Product Setup Flow Module
-short_description: Create products and initialize product modules through verified ZenTao web forms with strict module constraints.
-default_prompt: Use the product-setup-flow module inside openclaw-zentao-pack. Create the product first, then initialize product modules. Enforce product-module constraints before submit: module names in one request must be unique, existing product modules must not be resubmitted, and unsupported fields such as unavailable product code fields must be reported explicitly. Resolve owners in this order: real account, real ZenTao display name, configured user_aliases. If the user did not explicitly ask for another format, your final reply MUST use the exact 5-field wrapper with 【角色】, 【意图】, 【结果】, 【正文】, and 【后续动作】. Do not replace it with free-form headings such as 产品创建结果 or 校验说明.
+display_name: 禅道产品初始化流程模块
+short_description: 通过已验证的禅道 Web 表单创建产品并初始化产品模块，严格校验模块约束。
+default_prompt: 使用 openclaw-zentao-pack 内的 product-setup-flow 模块。先创建产品，再初始化产品模块。提交前必须校验产品模块约束：同一次请求中的模块名必须唯一，已存在的产品模块不得重复提交，不支持的字段（例如当前系统中不可用的产品代号字段）必须明确告知。负责人解析规则固定为：优先使用真实禅道账号；如果无法匹配现有禅道用户，必须要求用户手动提供工号或禅道账号。如果用户没有明确要求其他格式，最终回复必须严格使用 5 段包装：`【角色】`、`【意图】`、`【结果】`、`【正文】`、`【后续动作】`，不要替换成“产品创建结果”“校验说明”等自由标题。

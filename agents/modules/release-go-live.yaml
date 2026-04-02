@@ -1,3 +1,3 @@
-display_name: ZenTao Release Go Live Module
-short_description: Read-only SOP phase 7 checks for releases, product overview, and delivery scope.
-default_prompt: Use the release-go-live module inside openclaw-zentao-pack. First inspect product releases, product overview, and delivery scope through verified Web JSON routes before proposing release creation or go-live actions.
+display_name: 禅道上线发布检查模块
+short_description: 只读型 SOP 第 7 阶段检查，用于查看发布、产品概览和交付范围。
+default_prompt: 使用 openclaw-zentao-pack 内的 release-go-live 模块。先通过已验证的 Web JSON 路由检查产品发布、产品概览和交付范围，再提出任何发布创建或上线动作建议。
