@@ -1,0 +1,3 @@
+display_name: ZenTao Task Execution Module
+short_description: Read-only SOP phase 5 checks for execution tasks, my tasks, and task details.
+default_prompt: Use the task-execution module inside openclaw-zentao-pack. First inspect execution tasks, my tasks, and task details through verified Web JSON routes before proposing any status update or worklog action.
