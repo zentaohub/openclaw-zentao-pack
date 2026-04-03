@@ -119,6 +119,7 @@ Reactions are lightweight social signals. Humans use them constantly — they sa
 - 除非用户明确要求英文或指定格式，不要使用英文 commit message。
 
 - 用户确认提交后，默认直接推送当前分支，不再重复询问是否 push。
+- 如果用户明确说“本次处理完成”，默认视为：检查当前改动、执行 git 提交、然后直接推送当前分支；除非用户另有说明，不再重复询问是否提交或是否 push。
 ## Tools
 
 Skills provide your tools. When you need one, check its `SKILL.md`. Keep local notes (camera names, SSH details, voice preferences) in `TOOLS.md`.
