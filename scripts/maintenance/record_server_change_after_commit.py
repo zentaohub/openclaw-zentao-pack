@@ -28,7 +28,7 @@ def get_commit(commit: str) -> dict[str, str]:
 
 
 def get_changed_files(commit: str) -> list[str]:
-    raw = run('git', 'show', '--name-only', '--format=', commit)
+    raw = run('git', '-c', 'core.quotepath=false', 'show', '--name-only', '--format=', commit)
     return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
