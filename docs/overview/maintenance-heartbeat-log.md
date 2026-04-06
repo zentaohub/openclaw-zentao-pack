@@ -42,3 +42,16 @@
 **建议动作**：创建空目录 `assets/` 并补充 `.gitkeep` 占位，或在 `SKILL.md` / `README.md` 中明确说明该目录暂不使用。
 
 **风险**：无直接功能风险；但技能包结构完整性受损，后续如需存放图片、模板等资源时无处可放。
+
+## 2026-04-07 04:28 (Asia/Shanghai)
+
+**问题**：`assets/` 目录缺失（第 4 次发现，已修复）
+
+**依据**：HEARTBEAT.md 检查清单明确列出 `assets/` 为检查目标，连续 4 次心跳巡检均确认该目录不存在。
+
+**建议动作**：创建空目录 `assets/` 并补充 `.gitkeep` 占位。
+
+**风险**：无。已执行修复。
+
+**状态**：✅ 已创建 `/root/.openclaw/workspace/skills/openclaw-zentao-pack/assets/.gitkeep`
+
