@@ -8,6 +8,8 @@
         "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "wecom-callback": "npm run build && node dist/scripts/callbacks/wecom_callback.js",
         "wecom-contact-sync": "npm run build && node dist/scripts/callbacks/wecom_contact_sync.js",
+        "notify-task-change": "npm run build && node dist/scripts/actions/update_task_status.js",
+        "notify-bug-change": "npm run build && node dist/scripts/actions/update_bug_status.js",
         "sync-user": "npm run build && node dist/scripts/sync_user.js",
         "query-programs": "npm run build && node dist/scripts/queries/query_programs.js",
         "query-products": "npm run build && node dist/scripts/queries/query_products.js",
@@ -32,6 +34,7 @@
         "query-product-stories": "npm run build && node dist/scripts/queries/query_product_stories.js",
         "query-my-stories": "npm run build && node dist/scripts/queries/query_my_stories.js",
         "query-story-detail": "npm run build && node dist/scripts/queries/query_story_detail.js",
+        "query-notification-audit": "npm run build && node dist/scripts/queries/query_notification_audit.js",
         "create-product": "npm run build && node dist/scripts/create_product.js",
         "create-product-modules": "npm run build && node dist/scripts/create_product_modules.js",
         "create-product-with-modules": "npm run build && node dist/scripts/create_product_with_modules.js",
@@ -65,5 +68,8 @@
     "devDependencies": {
         "@types/node": "^20.17.30",
         "typescript": "^5.8.2"
+    },
+    "dependencies": {
+        "yaml": "^2.8.3"
     }
 }

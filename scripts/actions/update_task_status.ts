@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { printJson, ZentaoClient, type JsonObject } from '../shared/zentao_client';
+import { notifyTaskStatusChanged } from "../shared/wecom_notify";
 
 const ALLOWED_STATUSES = new Set(["doing", "done", "pause", "closed", "activate"]);
 
@@ -66,11 +67,40 @@ async function main(): Promise<void> {
   }
 
   const taskIdRaw = values.task ?? values["task-id"];
+  const taskId = requiredNumber(taskIdRaw, values.task ? "task" : "task-id");
 
   const client = new ZentaoClient({ userid: values.userid });
   await client.login(false);
-  const result = await client.updateTaskStatus(requiredNumber(taskIdRaw, values.task ? "task" : "task-id"), payload);
-  printJson(result);
+  let oldStatus: string | undefined;
+  try {
+    const before = await client.getWebJsonViewData(`/task-view-${taskId}.json`);
+    const task = typeof before.task === "object" && before.task !== null && !Array.isArray(before.task)
+      ? before.task as JsonObject
+      : undefined;
+    oldStatus = typeof task?.status === "string" ? task.status : undefined;
+  } catch {
+    oldStatus = undefined;
+  }
+  const result = await client.updateTaskStatus(taskId, payload);
+  let notification: JsonObject | undefined;
+  try {
+    notification = await notifyTaskStatusChanged({
+      taskId,
+      operatorUserid: values.userid,
+      oldStatus,
+      newStatus: status,
+      comment: values.comment,
+    });
+  } catch (error) {
+    notification = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  printJson({
+    ...result,
+    notification,
+  });
 }
 
 void main().catch((error) => {

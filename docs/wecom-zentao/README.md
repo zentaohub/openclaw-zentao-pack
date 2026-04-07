@@ -9,6 +9,9 @@
 3. `05-master-solution.md`
 4. `09-wecom-ui-prototype-mvp.html`
 5. `10-cross-role-swimlane.html`
+6. `11-notification-rules-mvp.yaml`
+7. `13-receiver-resolution-spec.md`
+8. `12-notification-templates-mvp.yaml`
 
 ## 当前保留的核心文档
 
@@ -36,6 +39,22 @@
   - 跨角色协作泳道图 Markdown 版
   - 适合留档和评审纪要
 
+- `11-notification-rules-mvp.yaml`
+  - 需求 / Bug / 任务的通知规则配置
+  - 适合后端实现规则引擎与事件通知
+
+- `12-notification-templates-mvp.yaml`
+  - 企微通知消息模板
+  - 适合消息文案、占位符和模板管理
+
+- `13-receiver-resolution-spec.md`
+  - 接收人解析规则说明
+  - 适合开发确认“该通知发给谁”的取值逻辑
+
+- `../overview/通知链路记录.md`
+  - 通知执行结果总览
+  - 适合联调、排错、给团队看真实通知结果
+
 ## 历史归档文档
 
 以下文档已移入 `archive/`，原因不是“错误”，而是它们更偏前期方案拆分稿、产品稿或设计草案，不再作为当前默认阅读入口：
@@ -58,5 +77,15 @@
 
 - 看运行事实：优先 `07-current-runtime-flow.md`
 - 看架构与方案：优先 `04-architecture.md`、`05-master-solution.md`
+- 看通知方案：优先 `11-notification-rules-mvp.yaml`、`13-receiver-resolution-spec.md`、`12-notification-templates-mvp.yaml`
+- 看通知执行结果：优先 `../overview/通知链路记录.md`
 - 看展示材料：优先 `09-wecom-ui-prototype-mvp.html`、`10-cross-role-swimlane.html`
 - 查历史草案：再进入 `archive/`
+
+## 通知链路快速手册
+
+- 查规则：`11-notification-rules-mvp.yaml`
+- 查模板：`12-notification-templates-mvp.yaml`
+- 查接收人：`13-receiver-resolution-spec.md`
+- 查总览结果：`../overview/通知链路记录.md`
+- 查命令行日志：`npm run query-notification-audit -- --latest 20`

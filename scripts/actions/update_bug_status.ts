@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { printJson, type JsonObject, ZentaoClient } from "../shared/zentao_client";
+import { notifyBugStatusChanged } from "../shared/wecom_notify";
 
 const ALLOWED_STATUSES = new Set(["resolve", "close", "activate"]);
 
@@ -53,11 +54,40 @@ async function main(): Promise<void> {
   if (values["duplicate-bug"]) payload.duplicateBug = values["duplicate-bug"];
 
   const bugIdRaw = values.bug ?? values["bug-id"];
+  const bugId = requiredNumber(bugIdRaw, values.bug ? "bug" : "bug-id");
 
   const client = new ZentaoClient({ userid: values.userid });
   await client.login(false);
-  const result = await client.updateBugStatus(requiredNumber(bugIdRaw, values.bug ? "bug" : "bug-id"), payload);
-  printJson(result);
+  let oldStatus: string | undefined;
+  try {
+    const before = await client.getWebJsonViewData(`/bug-view-${bugId}.json`);
+    const bug = typeof before.bug === "object" && before.bug !== null && !Array.isArray(before.bug)
+      ? before.bug as JsonObject
+      : before;
+    oldStatus = typeof bug.status === "string" ? bug.status : undefined;
+  } catch {
+    oldStatus = undefined;
+  }
+  const result = await client.updateBugStatus(bugId, payload);
+  let notification: JsonObject | undefined;
+  try {
+    notification = await notifyBugStatusChanged({
+      bugId,
+      operatorUserid: values.userid,
+      oldStatus,
+      newStatus: status,
+      comment: values.comment,
+    });
+  } catch (error) {
+    notification = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  printJson({
+    ...result,
+    notification,
+  });
 }
 
 void main().catch((error) => {

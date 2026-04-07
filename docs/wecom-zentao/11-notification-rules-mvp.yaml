@@ -1,0 +1,559 @@
+version: 1
+description: 禅道变更通知规则（MVP 第一版）
+
+# 当前执行原则：
+# 1. 默认只通知“受本次事件影响、需要动作的人”
+# 2. primary_receivers 为实际发送对象
+# 3. cc_receivers 先留作策略文档，不作为当前 MVP 发送对象
+
+defaults:
+  enabled: true
+  deduplicate_receivers: true
+  exclude_operator: true
+  receiver_priority:
+    - direct
+    - cc
+    - none
+
+role_sources:
+  pm: story.pm
+  product_owner: story.productOwner
+  requester: story.requester
+  creator: common.creator
+  current_assignee: common.currentAssignee
+  new_assignee: change.newAssignee
+  old_assignee: change.oldAssignee
+  tester: common.tester
+  project_owner: common.projectOwner
+  dev_owner: common.devOwner
+  collaborators: common.collaborators
+  watchers: common.watchers
+  related_story_owner: common.relatedStoryOwner
+  next_dev: change.nextDevOwner
+  next_tester: change.nextTesterOwner
+
+field_sets:
+  story_core_fields:
+    - title
+    - desc
+    - spec
+    - verify
+    - priority
+    - pri
+    - module
+    - plan
+    - release
+    - deadline
+    - start_date
+    - end_date
+    - acceptance_criteria
+
+conditions:
+  high_bug:
+    any:
+      - field: severity
+        in: [1, 2]
+      - field: priority
+        in: [1, 2]
+      - field: impact_version
+        equals: true
+
+  story_core_field_changed:
+    field_changed_in: story_core_fields
+
+rules:
+  - rule_code: story_created_notify_pm
+    object_type: story
+    event_type: created
+    when:
+      always: true
+    pm_notify_mode: direct
+    primary_receivers:
+      - pm
+    cc_receivers:
+      - requester
+      - project_owner
+    priority: high
+    template: story_created
+    remark: 新建需求直接通知 PM
+
+  - rule_code: story_core_field_changed_notify_pm
+    object_type: story
+    event_type: field_changed
+    when:
+      ref: story_core_field_changed
+    pm_notify_mode: direct
+    primary_receivers:
+      - pm
+      - current_assignee
+    cc_receivers:
+      - requester
+      - project_owner
+    priority: high
+    template: story_core_field_changed
+    remark: 需求核心字段变更
+
+  - rule_code: story_status_planned_notify
+    object_type: story
+    event_type: status_changed
+    when:
+      field: status
+      in: [planned, projected, active]
+    pm_notify_mode: cc
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - requester
+    priority: medium
+    template: story_status_planned
+    remark: 需求进入执行阶段，通知对应研发/测试
+
+  - rule_code: story_rejected_closed_notify
+    object_type: story
+    event_type: status_changed
+    when:
+      field: status
+      in: [rejected, closed, suspended]
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - requester
+      - pm
+    priority: high
+    template: story_rejected_closed
+    remark: 需求关闭/拒绝，优先通知受影响研发/测试
+
+  - rule_code: story_priority_changed_notify
+    object_type: story
+    event_type: priority_changed
+    when:
+      always: true
+    pm_notify_mode: direct
+    primary_receivers:
+      - pm
+      - current_assignee
+      - project_owner
+    cc_receivers:
+      - requester
+    priority: high
+    template: story_priority_changed
+    remark: 需求优先级变更
+
+  - rule_code: story_assignee_changed_cc_pm
+    object_type: story
+    event_type: assignee_changed
+    when:
+      always: true
+    pm_notify_mode: cc
+    primary_receivers:
+      - new_assignee
+      - old_assignee
+    cc_receivers:
+      - pm
+      - project_owner
+    priority: medium
+    template: story_assignee_changed
+    remark: 需求负责人变更
+
+  - rule_code: story_plan_changed_notify
+    object_type: story
+    event_type: field_changed
+    when:
+      field_changed_in:
+        - release
+        - plan
+        - start_date
+        - end_date
+        - deadline
+    pm_notify_mode: direct
+    primary_receivers:
+      - pm
+      - project_owner
+      - current_assignee
+    cc_receivers:
+      - requester
+    priority: high
+    template: story_plan_changed
+    remark: 需求计划版本/上线时间变化
+
+  - rule_code: story_done_notify
+    object_type: story
+    event_type: status_changed
+    when:
+      field: status
+      in: [done, verified, closed]
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_tester
+    cc_receivers:
+      - requester
+      - project_owner
+    priority: high
+    template: story_done
+    remark: 需求完成/验收，优先通知研发/测试
+
+  - rule_code: bug_created_high_notify
+    object_type: bug
+    event_type: created
+    when:
+      ref: high_bug
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - creator
+      - pm
+      - project_owner
+    priority: high
+    template: bug_created_high
+    remark: 高优 Bug 新建，优先通知处理人与测试
+
+  - rule_code: bug_created_normal_notify
+    object_type: bug
+    event_type: created
+    when:
+      not:
+        ref: high_bug
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - creator
+    priority: medium
+    template: bug_created_normal
+    remark: 普通 Bug 新建，不通知 PM
+
+  - rule_code: bug_assignee_changed_notify
+    object_type: bug
+    event_type: assignee_changed
+    when:
+      always: true
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - old_assignee
+    priority: medium
+    template: bug_assignee_changed
+    remark: Bug 转派，优先通知新处理人
+
+  - rule_code: bug_resolved_high_cc_pm
+    object_type: bug
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [resolve, resolved]
+        - ref: high_bug
+    pm_notify_mode: cc
+    primary_receivers:
+      - next_tester
+    cc_receivers:
+      - current_assignee
+      - pm
+      - project_owner
+    priority: medium
+    template: bug_resolved_high
+    remark: Bug 已修复，优先通知验证人
+
+  - rule_code: bug_resolved_normal_notify
+    object_type: bug
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [resolve, resolved]
+        - not:
+            ref: high_bug
+    pm_notify_mode: none
+    primary_receivers:
+      - next_tester
+    cc_receivers: []
+    priority: medium
+    template: bug_resolved_normal
+    remark: 普通 Bug 已修复，优先通知验证人
+
+  - rule_code: bug_reopened_high_notify
+    object_type: bug
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [activate, activated, reopened]
+        - ref: high_bug
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - creator
+      - tester
+      - pm
+      - project_owner
+    priority: high
+    template: bug_reopened_high
+    remark: Bug 重开/激活，优先通知重新接手的人
+
+  - rule_code: bug_reopened_normal_notify
+    object_type: bug
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [activate, activated, reopened]
+        - not:
+            ref: high_bug
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - creator
+      - tester
+    priority: medium
+    template: bug_reopened_normal
+    remark: 普通 Bug 重开/激活，优先通知处理人
+
+  - rule_code: bug_closed_high_cc_pm
+    object_type: bug
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [close, closed]
+        - ref: high_bug
+    pm_notify_mode: cc
+    primary_receivers:
+      - next_tester
+    cc_receivers:
+      - creator
+      - pm
+      - current_assignee
+    priority: medium
+    template: bug_closed_high
+    remark: Bug 关闭，优先通知验证/提出侧
+
+  - rule_code: bug_closed_normal_notify
+    object_type: bug
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [close, closed]
+        - not:
+            ref: high_bug
+    pm_notify_mode: none
+    primary_receivers:
+      - next_tester
+    cc_receivers:
+      - creator
+      - current_assignee
+    priority: low
+    template: bug_closed_normal
+    remark: 普通 Bug 关闭，优先通知验证/提出侧
+
+  - rule_code: bug_priority_up_notify
+    object_type: bug
+    event_type: priority_changed
+    when:
+      field: priority_up
+      equals: true
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - creator
+      - pm
+      - project_owner
+    priority: high
+    template: bug_priority_up
+    remark: Bug 优先级升级，优先通知处理人与测试
+
+  - rule_code: bug_affect_story_acceptance_notify
+    object_type: bug
+    event_type: relation_changed
+    when:
+      all:
+        - field: related_story
+          equals: true
+        - field: affect_acceptance
+          equals: true
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_dev
+      - next_tester
+      - related_story_owner
+    cc_receivers:
+      - creator
+      - pm
+      - project_owner
+    priority: high
+    template: bug_affect_story_acceptance
+    remark: Bug 影响需求验收时，优先通知受影响研发/测试/需求负责人
+
+  - rule_code: task_created_key_cc_pm
+    object_type: task
+    event_type: created
+    when:
+      field: is_key_task
+      equals: true
+    pm_notify_mode: cc
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - pm
+      - project_owner
+      - creator
+    priority: medium
+    template: task_created_key
+    remark: 关键任务新建
+
+  - rule_code: task_created_normal_notify
+    object_type: task
+    event_type: created
+    when:
+      field: is_key_task
+      equals: false
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - creator
+    priority: low
+    template: task_created_normal
+    remark: 普通任务新建
+
+  - rule_code: task_assignee_changed_notify
+    object_type: task
+    event_type: assignee_changed
+    when:
+      always: true
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - creator
+    priority: medium
+    template: task_assignee_changed
+    remark: 任务转派
+
+  - rule_code: task_done_key_cc_pm
+    object_type: task
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          equals: done
+        - field: is_key_task
+          equals: true
+    pm_notify_mode: cc
+    primary_receivers:
+      - next_tester
+    cc_receivers:
+      - creator
+      - pm
+      - project_owner
+    priority: medium
+    template: task_done_key
+    remark: 关键任务完成，优先通知执行人与验证人
+
+  - rule_code: task_done_normal_notify
+    object_type: task
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          equals: done
+        - field: is_key_task
+          equals: false
+    pm_notify_mode: none
+    primary_receivers:
+      - next_tester
+    cc_receivers: []
+    priority: low
+    template: task_done_normal
+    remark: 普通任务完成，优先通知执行人与验证人
+
+  - rule_code: task_blocked_key_notify
+    object_type: task
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [blocked, paused, delayed]
+        - field: affect_story
+          equals: true
+    pm_notify_mode: direct
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - creator
+      - collaborators
+      - pm
+      - project_owner
+    priority: high
+    template: task_blocked_key
+    remark: 关键任务阻塞/延期，优先通知当前处理人
+
+  - rule_code: task_blocked_normal_notify
+    object_type: task
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [blocked, paused, delayed]
+        - field: affect_story
+          equals: false
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+    cc_receivers:
+      - creator
+    priority: medium
+    template: task_blocked_normal
+    remark: 普通阻塞/延期，优先通知当前处理人
+
+  - rule_code: task_closed_story_cc_pm
+    object_type: task
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [closed, canceled]
+        - field: affect_story
+          equals: true
+    pm_notify_mode: cc
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - creator
+      - pm
+      - project_owner
+    priority: medium
+    template: task_closed_story
+    remark: 关联需求任务关闭，优先通知受影响执行/验证人
+
+  - rule_code: task_closed_normal_notify
+    object_type: task
+    event_type: status_changed
+    when:
+      all:
+        - field: status
+          in: [closed, canceled]
+        - field: affect_story
+          equals: false
+    pm_notify_mode: none
+    primary_receivers:
+      - next_dev
+      - next_tester
+    cc_receivers:
+      - creator
+      - project_owner
+    priority: low
+    template: task_closed_normal
+    remark: 普通任务关闭/取消，优先通知受影响执行/验证人
