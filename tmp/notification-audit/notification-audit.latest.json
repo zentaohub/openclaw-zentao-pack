@@ -1,5 +1,123 @@
 [
   {
+    "id": "bug_assignee_changed_1775627273908_irp2mthw",
+    "created_at": "2026-04-08T05:47:53.908Z",
+    "object_type": "bug",
+    "event_type": "assignee_changed",
+    "entity_id": 14,
+    "rule_code": "bug_assignee_changed_notify",
+    "template": "bug_assignee_changed",
+    "operator_userid": "LengLeng",
+    "next_dev": [
+      "zqq"
+    ],
+    "next_tester": [
+      "admin"
+    ],
+    "receivers": [
+      "zqq"
+    ],
+    "ok": true,
+    "wecom_response": {
+      "errcode": 0,
+      "errmsg": "ok",
+      "msgid": "oykM8gZThPh2qFctYhHlfLBlhOO1bLsxI_UqoQ5YCZj3xcEhrlGF8xFzSuXsCy92OrBVZ0DOp9mSfmSwn58m4CfSxZMkUdzm5mN82DqgZUE"
+    },
+    "extra": {
+      "new_status": "active",
+      "old_assignee": "郑青青",
+      "new_assignee": "zqq",
+      "links": {
+        "bug_detail": "http://1.14.73.166/bug-view-14.html"
+      }
+    }
+  },
+  {
+    "id": "bug_assignee_changed_1775627193670_drusf7k4",
+    "created_at": "2026-04-08T05:46:33.670Z",
+    "object_type": "bug",
+    "event_type": "assignee_changed",
+    "entity_id": 14,
+    "rule_code": "bug_assignee_changed_notify",
+    "template": "bug_assignee_changed",
+    "operator_userid": "LengLeng",
+    "next_dev": [
+      "郑青青"
+    ],
+    "next_tester": [
+      "admin"
+    ],
+    "receivers": [
+      "郑青青"
+    ],
+    "skipped_reason": "WeCom message.send failed: 81013 user & party & tag all invalid, hint: [1775627193035890795235287], from ip: 1.14.73.166, more info at https://open.work.weixin.qq.com/devtool/query?e=81013",
+    "ok": false,
+    "extra": {
+      "new_status": "active",
+      "old_assignee": "LengLeng",
+      "new_assignee": "郑青青",
+      "links": {
+        "bug_detail": "http://1.14.73.166/bug-view-14.html"
+      }
+    }
+  },
+  {
+    "id": "bug_assignee_changed_1775620193619_bvybbpqh",
+    "created_at": "2026-04-08T03:49:53.619Z",
+    "object_type": "bug",
+    "event_type": "assignee_changed",
+    "entity_id": 14,
+    "rule_code": "bug_assignee_changed_notify",
+    "template": "bug_assignee_changed",
+    "operator_userid": "LengLeng",
+    "next_dev": [
+      "LengLeng"
+    ],
+    "next_tester": [
+      "admin"
+    ],
+    "receivers": [],
+    "skipped_reason": "no receivers resolved (operator excluded)",
+    "ok": true,
+    "extra": {
+      "new_status": "active",
+      "old_assignee": "邓梦佳",
+      "new_assignee": "LengLeng",
+      "links": {
+        "bug_detail": "http://1.14.73.166/bug-view-14.html"
+      }
+    }
+  },
+  {
+    "id": "bug_assignee_changed_1775618301362_qofszmcn",
+    "created_at": "2026-04-08T03:18:21.362Z",
+    "object_type": "bug",
+    "event_type": "assignee_changed",
+    "entity_id": 14,
+    "rule_code": "bug_assignee_changed_notify",
+    "template": "bug_assignee_changed",
+    "operator_userid": "LengLeng",
+    "next_dev": [
+      "邓梦佳"
+    ],
+    "next_tester": [
+      "admin"
+    ],
+    "receivers": [
+      "邓梦佳"
+    ],
+    "skipped_reason": "WeCom message.send failed: 81013 user & party & tag all invalid, hint: [1775618301035891479979997], from ip: 1.14.73.166, more info at https://open.work.weixin.qq.com/devtool/query?e=81013",
+    "ok": false,
+    "extra": {
+      "new_status": "active",
+      "old_assignee": "鲜敏",
+      "new_assignee": "邓梦佳",
+      "links": {
+        "bug_detail": "http://1.14.73.166/bug-view-14.html"
+      }
+    }
+  },
+  {
     "id": "task_status_changed_1775612096488_hs1csw08",
     "created_at": "2026-04-08T01:34:56.488Z",
     "object_type": "task",

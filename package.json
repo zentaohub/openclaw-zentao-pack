@@ -64,7 +64,8 @@
         "query-test-exit-readiness": "npm run build && node dist/scripts/queries/query_test_exit_readiness.js",
         "assign-bug": "npm run build && node dist/scripts/actions/assign_bug.js",
         "query-regression-bugs": "npm run build && node dist/scripts/queries/query_regression_bugs.js",
-        "query-closure-items": "npm run build && node dist/scripts/queries/query_closure_items.js"
+        "query-closure-items": "npm run build && node dist/scripts/queries/query_closure_items.js",
+        "test-wecom-agent-card": "node scripts/tests/send_wecom_agent_card_test.mjs"
     },
     "dependencies": {
         "xlsx": "^0.18.5",

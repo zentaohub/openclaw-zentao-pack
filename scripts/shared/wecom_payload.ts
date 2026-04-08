@@ -24,6 +24,8 @@ export interface WecomAttachmentInfo {
   msgType?: string;
 }
 
+export type WecomMessageSource = "bot" | "agent" | "unknown";
+
 function getNestedString(record: JsonObject | undefined, keys: string[]): string | undefined {
   if (!record) {
     return undefined;
@@ -105,4 +107,26 @@ export function extractAttachmentInfo(payload: WecomMessagePayload): WecomAttach
       getNestedString(file, ["msgtype", "MsgType", "type"])
     ),
   };
+}
+
+export function detectWecomMessageSource(payload: WecomMessagePayload): WecomMessageSource {
+  const body = toObject(payload.body);
+  const sender = toObject(payload.sender);
+
+  if (
+    getNestedString(payload, ["msgtype", "userid", "userId", "response_url"]) ||
+    getNestedString(body, ["msgtype"]) ||
+    getNestedString(sender, ["userid", "userId", "from_user_id"])
+  ) {
+    return "bot";
+  }
+
+  if (
+    getNestedString(payload, ["MsgType", "FromUserName", "ToUserName", "AgentID"]) ||
+    getNestedString(body, ["MsgType", "FromUserName", "ToUserName", "AgentID"])
+  ) {
+    return "agent";
+  }
+
+  return "unknown";
 }

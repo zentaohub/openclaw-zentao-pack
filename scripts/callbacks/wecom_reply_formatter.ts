@@ -1,5 +1,7 @@
 import { type JsonObject } from "../shared/zentao_client";
 import { resolveReplyTemplate } from "../replies/template_registry";
+import { resolveAgentReplyTemplate } from "../replies/agent_template_registry";
+import type { WecomMessageSource } from "../shared/wecom_payload";
 import { type IntentRoute } from "./wecom_route_resolver";
 
 export interface FormatterRoute {
@@ -29,6 +31,7 @@ export function buildScriptResultReply(
   route: IntentRoute,
   result: JsonObject,
   userid: string,
+  sourceType: WecomMessageSource,
   routeArgs: Record<string, string>,
 ): string {
   if (
@@ -39,12 +42,15 @@ export function buildScriptResultReply(
     return result.reply_text.trim();
   }
 
-  const template = resolveReplyTemplate(route.replyTemplate);
+  const template = sourceType === "agent"
+    ? resolveAgentReplyTemplate(route.replyTemplate)
+    : resolveReplyTemplate(route.replyTemplate);
 
   return template.render({
     intent: route.intent,
     script: route.script,
     userid,
+    sourceType,
     routeArgs,
     result,
   });

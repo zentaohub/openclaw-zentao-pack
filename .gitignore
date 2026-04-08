@@ -7,3 +7,4 @@ config.json
 *.local.json
 .opencode
 .vscode
+.tmp-agent-template-test/

@@ -43,7 +43,6 @@ import { updateBugStatusTemplate } from "./templates/update-bug-status";
 import { updateReleaseStatusTemplate } from "./templates/update-release-status";
 import { updateStoryStatusTemplate } from "./templates/update-story-status";
 import { updateTaskStatusTemplate } from "./templates/update-task-status";
-
 const TEMPLATE_REGISTRY: Record<string, ReplyTemplate> = {
   "assign-bug": assignBugTemplate,
   "create-bug": createBugTemplate,

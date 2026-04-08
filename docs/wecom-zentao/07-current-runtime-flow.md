@@ -1,328 +1,278 @@
-# 企微禅道最新实现流程说明
+# 企微到禅道的当前运行时链路
+更新时间：2026-04-08
 
-更新时间：2026-04-03
+本文从运行时视角说明当前消息如何从企业微信进入 OpenClaw，再落到禅道查询/操作脚本，并最终回复给用户。
 
-## 1. 当前整体链路
-
-当前服务器 `1.14.73.166` 上，企业微信消息进入禅道技能后的处理流程已经升级为：
-
-1. 企业微信消息进入回调入口
-2. 提取 `userid` 和消息文本
-3. 先做一层文本归一化
-4. 使用 `intent-routing.yaml` 做高优先级快速路由
-5. YAML 命中后，走统一脚本执行器
-6. YAML 未命中时，进入 LLM 禅道意图判定
-7. 如果 LLM 判断为禅道请求，继续走统一脚本执行器
-8. 如果 LLM 判断为非禅道请求，返回 `should_fallback_to_general_ai: true`
-
-一句话概括：
-
-`文本归一化 -> YAML 快路由 -> LLM 禅道兜底 -> 统一脚本执行 -> 非禅道转普通 AI`
-
-## 1.1 流程图
+## 1. 全链路概览
 
 ```mermaid
 flowchart TD
-    A["企微消息进入 wecom_callback.ts"] --> B["提取 userid 和 text"]
-    B --> C["文本归一化"]
-    C --> D["intent-routing.yaml 快速匹配"]
-    D -->|命中| E["提取参数 + 检查缺参"]
-    D -->|未命中| F["llm_intent_router.ts"]
-    F --> G["读取 openai.yaml 作为 system prompt"]
-    G --> H["LLM 判断是否为禅道请求 + intent + args"]
-    H -->|是禅道| E
-    H -->|非禅道| I["返回 should_fallback_to_general_ai=true"]
-    E -->|缺参| J["返回结构化缺参提示"]
-    E -->|参数齐全| K["统一脚本执行器"]
-    K --> L["调用对应 npm run --silent script"]
-    L --> M["返回 JSON 结果"]
-    M --> N["统一生成 reply_text"]
-    N --> O["返回企微结构化结果"]
+    A["企业微信回调"] --> B{"入口类型"}
+    B -->|Bot| C["monitor.ts"]
+    B -->|Agent| D["agent/handler.ts"]
+    C --> E["构造 Bot 会话上下文"]
+    D --> F["构造 Agent 会话上下文"]
+    E --> G["OpenClaw reply / session / routing"]
+    F --> G
+    G --> H["技能包 wecom_callback.ts"]
+    H --> I["识别 userid / text / source"]
+    I --> J["intent-routing.yaml"]
+    J -->|命中| K["执行 query/action 脚本"]
+    J -->|未命中| L["llm_intent_router.ts"]
+    L -->|禅道请求| K
+    L -->|非禅道请求| M["fallback 到通用 AI"]
+    K --> N["模板渲染"]
+    N --> O{"source"}
+    O -->|bot| P["机器人模板目录"]
+    O -->|agent| Q["自建应用模板目录"]
+    O -->|unknown| R["默认模板"]
+    P --> S["输出 reply_text"]
+    Q --> S
+    R --> S
 ```
 
-## 2. 当前关键文件
+## 2. Bot 运行时链路
 
-### 2.1 总入口
+入口文件：
 
-- 回调入口：
-  [wecom_callback.ts](/root/.openclaw/workspace/skills/openclaw-zentao-pack/scripts/callbacks/wecom_callback.ts)
+- `openclaw-server-config/extensions/wecom/src/monitor.ts`
 
-职责：
+处理过程：
 
-- 解析企微回调 payload
-- 提取 `userid`
-- 提取消息文本
-- 执行文本归一化
-- 优先走 YAML 快路由
-- YAML 未命中时调用 LLM 禅道判定
-- 统一返回结构化结果
+1. 接收企业微信机器人回调
+2. 校验签名、解析 JSON
+3. 做消息去重和 debounce 聚合
+4. 构造 OpenClaw inbound context
+5. 将消息交给 OpenClaw 会话与回复调度系统
+6. 如命中禅道能力，进入 `openclaw-zentao-pack`
+7. 最终优先通过 Bot 原会话回复
 
-### 2.2 路由真源
+Bot 路径的重要特征：
 
-- 路由配置：
-  [intent-routing.yaml](/root/.openclaw/workspace/skills/openclaw-zentao-pack/agents/modules/intent-routing.yaml)
+- 可能是群聊，也可能是单聊
+- 上游常带 `response_url`
+- 流式输出、占位回复、结束收口都依赖 Bot 流
+- 遇到文件、超时、权限或群发限制时，可能切到 Agent 私信兜底
 
-职责：
+## 3. Agent 运行时链路
 
-- 定义稳定意图
-- 定义触发词 `triggers`
-- 定义执行脚本 `script`
-- 定义 `required_args`
-- 定义 `required_args_any`
-- 定义默认参数，如 `userid: current_user`
+入口文件：
 
-### 2.3 LLM 禅道判定器
+- `openclaw-server-config/extensions/wecom/src/agent/handler.ts`
 
-- LLM 路由器：
-  [llm_intent_router.ts](/root/.openclaw/workspace/skills/openclaw-zentao-pack/scripts/callbacks/llm_intent_router.ts)
+处理过程：
 
-职责：
+1. 接收企业微信自建应用回调
+2. 校验签名、解密 XML
+3. 转成统一消息对象
+4. 构造 OpenClaw inbound context
+5. 将回复目标锁定为 `wecom-agent:${fromUser}`
+6. 进入 OpenClaw 会话与技能分发
+7. 最终通过 Agent API 私信回复触发者
 
-- 在 YAML 未命中时判断“这是不是禅道请求”
-- 判断最接近哪个 `intent`
-- 抽取 `args`
-- 识别 `missing_args`
-- 返回 `confidence` 和 `reason`
+Agent 路径的重要特征：
 
-### 2.4 LLM 提示词真源
+- 默认面向触发者私信交付
+- 不依赖 Bot `response_url`
+- 通过 `wecom-agent:` 前缀避免与 Bot 出站链路混用
 
-- Prompt 文件：
-  [openai.yaml](/root/.openclaw/workspace/skills/openclaw-zentao-pack/agents/openai.yaml)
+## 4. 技能包内的统一编排链路
 
-职责：
+统一入口：
 
-- 作为 LLM 禅道判定的 system prompt 来源
-- 约束输出格式和意图判断规则
-- 强调 YAML 优先、LLM 兜底
+- `openclaw-zentao-pack/scripts/callbacks/wecom_callback.ts`
 
-### 2.5 禅道客户端
+统一抽取能力：
 
-- 禅道客户端：
-  [zentao_client.ts](/root/.openclaw/workspace/skills/openclaw-zentao-pack/scripts/shared/zentao_client.ts)
+- `userid`
+- `text`
+- `message_source`
+- `attachment`
 
-职责：
+统一处理顺序：
 
-- 使用机器人账号登录禅道
-- 把企微 `userid` 映射为真实禅道用户
-- 执行查询、创建、状态更新等禅道操作
+1. 通讯录同步回调优先处理
+2. 附件导入任务特殊分支优先处理
+3. 读取 `intent-routing.yaml` 匹配稳定意图
+4. 未命中时调用 `llm_intent_router.ts`
+5. 执行目标脚本
+6. 使用模板生成 `reply_text`
+7. 输出结构化 JSON
 
-## 3. 文本归一化层
+## 5. 来源识别当前怎么做
 
-当前不是继续在 YAML 里无限堆“帮我 / 给我 / 看下 / 报个 / 现在”这类语气词，而是在回调入口统一做归一化。
+来源识别文件：
 
-当前已经处理的典型归一化包括：
+- `openclaw-zentao-pack/scripts/shared/wecom_payload.ts`
 
-- 礼貌词/请求词
-  - `帮我`
-  - `给我`
-  - `麻烦`
-  - `请`
-  - `帮忙`
-- 弱语气词
-  - `看看` -> `看`
-  - `看一下` -> `看`
-  - `看下` -> `看`
-  - `看一眼` -> `看`
-  - `查一下` -> `查`
-  - `查下` -> `查`
-- 口语动作归一
-  - `报个 bug` -> `报 bug`
-  - `提个 bug` -> `提 bug`
-  - `建个任务` -> `创建任务`
-  - `建个产品` -> `创建产品`
-  - `建个模块` -> `创建模块`
-- 时间前缀弱化
-  - 句首 `现在`
-  - 句首 `当前`
+识别方法：
 
-这样做的目的：
+- `detectWecomMessageSource(payload)`
 
-- YAML 只维护核心业务短语
-- 减少无穷无尽的语气词膨胀
-- 降低后续维护成本
+判定规则：
 
-## 4. YAML 快路由层
+- Bot 载荷特征：
+  - `msgtype`
+  - `userid` / `userId`
+  - `response_url`
+  - `sender.userid`
+- Agent 载荷特征：
+  - `MsgType`
+  - `FromUserName`
+  - `ToUserName`
+  - `AgentID`
 
-当前 `intent-routing.yaml` 已经覆盖这些高频能力域：
+输出值：
 
-- 我的任务 / 我的 Bug
-- 产品 / 模块 / 项目 / 迭代 / 执行
-- 需求 / 任务 / Bug / 测试单 / 测试用例 / 发布
-- 测试准出 / 上线检查 / 验收概览 / 结项准备 / 关闭阻塞项
-- 创建 / 指派 / 状态流转 / 关联
+- `bot`
+- `agent`
+- `unknown`
 
-当前策略是：
+## 6. 模板渲染链路
 
-- 高频稳定表达优先命中 YAML
-- 只有更开放、更自然、更模糊的表达才走 LLM
+相关文件：
 
-例如现在这些句子通常都能直接命中 YAML：
+- `scripts/callbacks/wecom_reply_formatter.ts`
+- `scripts/replies/template_registry.ts`
+- `scripts/replies/agent_template_registry.ts`
+- `scripts/replies/templates/`
+- `scripts/replies/agent_templates/`
 
-- `我的 bug`
-- `帮我看下我的任务`
-- `现在可以提测吗 4`
-- `这个版本可以上线吗`
+当前模板选择规则：
 
-## 5. 统一脚本执行层
+`buildScriptResultReply` 会先看 `message_source`：
 
-当前所有禅道意图都已经并入统一执行链，包括：
+- `agent`：走 `agent_template_registry.ts`
+- `bot`：走原 `template_registry.ts`
+- `unknown`：回退默认模板
 
-- `query-my-tasks`
-- `query-my-bugs`
-- `query-test-exit-readiness`
-- `query-go-live-checklist`
-- `query-projects`
-- `create-bug`
-- `update-task-status`
+这样做的目标很明确：
 
-不再保留“我的任务 / 我的 bug”在 callback 内部的独立特判分支。
+- 机器人回复模板保持原样
+- 自建应用回复模板可以独立演进
+- 路由配置仍继续写原来的 `reply_template: xxx`
 
-统一执行方式：
+## 7. 当前已经明确的回复分工
 
-- `wecom_callback.ts` 根据路由结果拿到 `script + args`
-- 通过 `npm run --silent <script>` 调用实际脚本
-- 读取脚本 JSON 结果
-- 拼装 `reply_text`
+### 7.1 Bot 会话
 
-当前也已经统一处理了：
+适合：
 
-- 缺参提示
-- 脚本执行失败提示
-- 企微友好的文本摘要
+- 群聊即时反馈
+- 原会话连续追问
+- 流式占位与“处理中”提示
 
-## 6. LLM 禅道兜底层
+限制：
 
-如果 YAML 没命中，就走 `llm_intent_router.ts`。
+- 某些内容不适合或无法直接在群内交付
+- 存在会话权限、文件发送、时窗等约束
 
-它当前会：
+### 7.2 Agent 会话
 
-- 读取 `openai.yaml` 的 `default_prompt`
-- 读取 `/root/.openclaw/private/openclaw.runtime.json` 里的模型配置
-- 请求 OpenClaw 当前模型提供者
-- 只允许模型返回 JSON
+适合：
 
-当前期望输出字段：
+- 私信持续交互
+- 命令回执
+- Bot 不便承载的文件或兜底内容
+- 自建应用卡片类回复
 
-- `is_zentao_request`
-- `intent`
-- `args`
-- `missing_args`
-- `confidence`
-- `reason`
+限制：
 
-例如：
+- 天然不是群内原地回复
+- 用户感知上更像“应用私信”而不是“机器人群消息”
 
-用户输入：
+## 8. Agent 卡片回复的新增链路
 
-`帮我看看 4 号迭代现在是否可以开始测试`
+自建应用与机器人目前还有一个关键差异：
 
-LLM 可判定为：
+- 机器人原链路本来就有卡片相关处理
+- 自建应用链路原先只有文本和媒体发送
+- 现在自建应用也已支持 `template_card`
 
-- `is_zentao_request = true`
-- `intent = query-test-exit-readiness`
-- `args.execution = 4`
+新增出口逻辑位于：
 
-然后回到统一执行链继续执行。
+- `openclaw-server-config/extensions/wecom/src/agent/handler.ts`
+- `openclaw-server-config/extensions/wecom/src/agent/api-client.ts`
 
-## 7. 身份映射和禅道登录
+新增行为如下：
 
-当前身份处理原则没有变：
+1. 如果 Agent 最终回复文本看起来是 JSON
+2. 且 JSON 顶层包含 `template_card`
+3. 则不再按普通文本发送
+4. 而是调用 `sendTemplateCard(...)`
+5. 使用企业微信自建应用接口发送卡片
 
-1. 企微消息先拿到 `userid`
-2. 禅道使用固定机器人账号登录
-3. 再把当前 `userid` 映射为真实禅道用户
-4. 以该映射结果去查询或执行禅道操作
+这意味着：
 
-当前不再走旧式“按发送人禅道密码直接切换登录”的方案。
+- `agent_templates` 可以返回卡片 JSON
+- 机器人模板仍保持原样
+- 同一个意图现在可以做到 Bot 回复文本、Agent 回复卡片
 
-## 8. 普通 AI fallback
+## 9. 当前 `query-my-tasks` 的实际分流状态
 
-如果 YAML 未命中且 LLM 判断不是禅道请求，当前 skill 不直接返回普通 AI 内容，而是返回：
+`query-my-tasks` 已经是当前分流样板：
 
-- `intent: non_zentao_or_unknown`
-- `should_fallback_to_general_ai: true`
+- Bot 侧继续使用原来的文本模板
+- Agent 侧改为单独模板
+- Agent 模板当前输出 `text_notice` 卡片 JSON
 
-含义是：
+相关文件：
 
-- skill 已经完成“非禅道请求”的判断
-- 上层 OpenClaw 消息编排层应继续把原消息交给普通 AI
+- `scripts/replies/templates/query-my-tasks.ts`
+- `scripts/replies/agent_templates/query-my-tasks.ts`
+- `scripts/replies/agent_template_registry.ts`
 
-也就是说：
+因此当前运行时效果是：
 
-- 当前 skill 负责“是不是禅道”
-- 上层普通 AI 负责“非禅道聊天回复”
+- 从企微机器人进来的“我的任务”请求，走原文字回复
+- 从企微自建应用进来的“我的任务”请求，走卡片回复逻辑
 
-## 9. 当前适合给组员的简版结论
+## 10. 当前真实测试结论
 
-当前服务器已经不是早期那种“只识别我的任务 / 我的 Bug”的弱路由。
+2026-04-08 已使用 `openclaw-zentao-pack/config.json` 做过真实卡片发送测试。
 
-现在的能力特点是：
+测试对象：
 
-## 10. 主动通知日志（当前实现）
+- `xianmin`
+- `lengleng`
 
-当前“业务执行成功 -> 规则命中 -> 企微主动通知”这条链，已经增加了本地通知日志留痕。
+测试结果：
 
-### 10.1 日志文件
+- `gettoken` 成功
+- `message/send` 已发起
+- 两个用户都返回 `errcode=60020`
+- 错误含义是：当前出口 IP 不在企业微信可信 IP 白名单
 
-- 明细追加日志：`tmp/notification-audit/notification-audit.jsonl`
-- 最近 50 条快照：`tmp/notification-audit/notification-audit.latest.json`
-- 面向人看的总文档：`docs/overview/通知链路记录.md`
+所以现在的结论要分成两层理解：
 
-### 10.2 每条日志记录的内容
+- 代码层：自建应用卡片回复链路已经打通
+- 环境层：当前机器还不具备对外成功投递企微卡片的网络条件
 
-- 对象类型：`story / bug / task`
-- 事件类型：`status_changed / assignee_changed`
-- 对象 ID
-- 命中的规则编码 `rule_code`
-- 使用的模板 `template`
-- 操作人 `operator_userid`
-- 解析出的 `next_dev`
-- 解析出的 `next_tester`
-- 实际发送对象 `receivers`
-- 发送是否成功 `ok`
-- 跳过原因 `skipped_reason`
+## 11. 后续验证方式
 
-### 10.3 作用
+建议后续统一用下面两种方式验证：
 
-- 方便你验证“有没有发对人”
-- 方便排查为什么没发消息
-- 方便后续补失败重试或后台管理页
-
-### 10.4 当前建议
-
-- 联调阶段优先查看 `notification-audit.latest.json`
-- 如果要追完整历史，再看 `notification-audit.jsonl`
-- 如果要给团队统一查看，优先看 `docs/overview/通知链路记录.md`
-
-### 10.5 查询脚本
-
-当前已补充通知日志查询脚本：
+### 11.1 本地直连验证
 
 ```bash
-npm run query-notification-audit
-npm run query-notification-audit -- --latest 10
-npm run query-notification-audit -- --object bug
-npm run query-notification-audit -- --object bug --event status_changed --result failed
-npm run query-notification-audit -- --entity 13
+npm run test-wecom-agent-card -- ./config.json xianmin
 ```
 
-常用筛选参数：
+适合验证：
 
-- `--object story|bug|task`
-- `--event status_changed|assignee_changed`
-- `--result success|failed`
-- `--latest 20`
-- `--entity 13`
-- `--rule bug_resolved_normal_notify`
-- `--operator admin`
+- 企业微信凭据是否有效
+- 当前出口 IP 是否已放通
+- 目标用户是否能收到卡片
 
-- 有统一入口
-- 有文本归一化
-- 有 YAML 快路由
-- 有 LLM 禅道兜底
-- 有统一脚本执行器
-- 有普通 AI fallback 信号
+### 11.2 真实消息链路验证
 
-所以当前这套的定位可以描述为：
+验证步骤：
 
-“企微消息先尽量按可维护的规则命中禅道意图，命不中再用 LLM 做受控判定，最后统一走禅道脚本执行；如果根本不是禅道请求，再交给普通 AI。” 
+1. 在企微自建应用里给 OpenClaw 发“我的任务”
+2. 观察 `agent/handler.ts` 是否识别为 Agent 来源
+3. 观察 `wecom_callback.ts` 是否识别出 `message_source=agent`
+4. 观察 `buildScriptResultReply` 是否命中 `agent_template_registry`
+5. 确认最终回复内容为 `{"template_card": ...}`
+6. 由 Agent handler 将该 JSON 发成企微卡片
+
+只要这 6 步都成立，说明自建应用分流和卡片回复都已经走在正确路径上。
