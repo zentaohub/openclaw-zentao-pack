@@ -107,6 +107,11 @@ interface NotifyContext {
   };
 }
 
+interface ResolvedReceivers {
+  receivers: string[];
+  filteredOperator: boolean;
+}
+
 const DOCS_DIR = resolveDocsDir();
 const RULES_PATH = path.join(DOCS_DIR, "11-notification-rules-mvp.yaml");
 const TEMPLATES_PATH = path.join(DOCS_DIR, "12-notification-templates-mvp.yaml");
@@ -203,10 +208,14 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
   }
 
   const excludeOperator = rulesConfig.defaults?.exclude_operator !== false;
-  const receivers = resolveReceivers(rule, context, excludeOperator);
+  const resolvedReceivers = resolveReceivers(rule, context, excludeOperator);
+  const receivers = resolvedReceivers.receivers;
   if (receivers.length === 0) {
+    const reason = resolvedReceivers.filteredOperator
+      ? "no receivers resolved (operator excluded)"
+      : "no receivers resolved";
     const result = {
-      ...buildSkipped(context.object_type, context.event_type, "no receivers resolved"),
+      ...buildSkipped(context.object_type, context.event_type, reason),
       rule_code: rule.rule_code,
       template: rule.template,
     };
@@ -246,23 +255,29 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
 
 async function buildTaskContext(client: ZentaoClient, task: JsonObject, taskId: number, input: BaseNotifyInput): Promise<NotifyContext> {
   const relatedStory = await resolveLinkedStory(client, task.story);
+  const affectStory = normalizePositiveNumber(task.story) !== undefined;
+  const isKeyTask = isPriorityHigh(task.pri);
   const impactDev = collectUsers(
-    getString(task, "assignedTo"),
-    getString(relatedStory, "assignedTo"),
-    getString(relatedStory, "openedBy"),
+    ...getUserIds(task, "assignedTo"),
+    ...getUserIds(relatedStory, "assignedTo"),
+    ...getUserIds(relatedStory, "openedBy"),
   );
   const impactTester = collectUsers(
-    getString(task, "finishedBy"),
-    getString(task, "closedBy"),
-    getString(relatedStory, "reviewedBy"),
-    getString(relatedStory, "reviewer"),
+    ...getUserIds(task, "finishedBy"),
+    ...getUserIds(task, "closedBy"),
+    ...getUserIds(relatedStory, "reviewedBy"),
+    ...getUserIds(relatedStory, "reviewer"),
   );
   const nextDev = resolveNextDevForTask(task, relatedStory, input);
   const nextTester = resolveNextTesterForTask(task, relatedStory, input);
   return {
     object_type: "task",
     event_type: "status_changed",
-    entity: task,
+    entity: {
+      ...task,
+      affect_story: affectStory,
+      is_key_task: isKeyTask,
+    },
     operatorUserid: input.operatorUserid,
     change: {
       old_status_name: input.oldStatus,
@@ -339,8 +354,8 @@ async function buildBugContext(client: ZentaoClient, bug: JsonObject, bugId: num
 }
 
 async function buildStoryContext(client: ZentaoClient, story: JsonObject, storyId: number, input: BaseNotifyInput, closedReason?: string): Promise<NotifyContext> {
-  const impactDev = collectUsers(getString(story, "assignedTo"), getString(story, "openedBy"));
-  const impactTester = collectUsers(getString(story, "reviewedBy"), getString(story, "reviewer"), getString(story, "closedBy"));
+  const impactDev = collectUsers(...getUserIds(story, "assignedTo"), ...getUserIds(story, "openedBy"));
+  const impactTester = collectUsers(...getUserIds(story, "reviewedBy"), ...getUserIds(story, "reviewer"), ...getUserIds(story, "closedBy"));
   const nextDev = resolveNextDevForStory(story, input);
   const nextTester = resolveNextTesterForStory(story, input);
   return {
@@ -438,10 +453,14 @@ function matchesWhen(when: RuleWhen | undefined, context: NotifyContext, config:
   return false;
 }
 
-function resolveReceivers(rule: NotificationRule, context: NotifyContext, excludeOperator: boolean): string[] {
+function resolveReceivers(rule: NotificationRule, context: NotifyContext, excludeOperator: boolean): ResolvedReceivers {
   const users = resolveRoleUsers(rule.primary_receivers ?? [], context);
   const operator = excludeOperator ? normalizeUserid(context.operatorUserid) : undefined;
-  return Array.from(new Set(users.filter((item) => item && item !== operator)));
+  const receivers = Array.from(new Set(users.filter((item) => item && item !== operator)));
+  return {
+    receivers,
+    filteredOperator: Boolean(operator) && users.some((item) => item === operator),
+  };
 }
 
 function resolveRoleUsers(roles: string[], context: NotifyContext): string[] {
@@ -508,13 +527,30 @@ function readTokenValue(data: JsonObject, pathParts: string[]): JsonValue | unde
 }
 
 function readFieldValue(context: NotifyContext, field: string): JsonValue | undefined {
+  if (field === "status") {
+    const changedStatus = normalizeStatusForRule(context.change.new_status_name);
+    if (changedStatus) {
+      return changedStatus;
+    }
+    const entityStatus = context.entity.status;
+    return typeof entityStatus === "string" ? normalizeStatusForRule(entityStatus) : entityStatus;
+  }
   if (field in context.entity) {
     return context.entity[field];
   }
-  if (field === "status") {
-    return context.change.new_status_name;
-  }
   return undefined;
+}
+
+function normalizeStatusForRule(status: string | undefined): string | undefined {
+  if (!status) {
+    return status;
+  }
+  const normalized = status.trim().toLowerCase();
+  const aliasMap: Record<string, string> = {
+    pause: "paused",
+    activate: "active",
+  };
+  return aliasMap[normalized] ?? normalized;
 }
 
 function buildSkipped(objectType: SupportedObjectType, eventType: SupportedEventType, reason: string): NotifyResult {
@@ -564,6 +600,19 @@ function asObject(value: JsonValue | undefined): JsonObject | null {
 function getString(record: JsonObject, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function getUserIds(record: JsonObject, key: string): string[] {
+  const value = record[key];
+  if (typeof value === "string") {
+    return collectUsers(value);
+  }
+  if (Array.isArray(value)) {
+    return collectUsers(
+      ...value.map((item) => (typeof item === "string" ? item : String(item))),
+    );
+  }
+  return [];
 }
 
 function collectUsers(...values: Array<string | undefined>): string[] {
@@ -624,25 +673,25 @@ function normalizePositiveNumber(value: JsonValue | undefined): number | undefin
 }
 
 function resolveNextDevForTask(task: JsonObject, relatedStory: JsonObject, input: BaseNotifyInput): string[] {
-  const nextStatus = input.newStatus ?? getString(task, "status");
+  const nextStatus = normalizeStatusForRule(input.newStatus ?? getString(task, "status"));
   if (["doing", "blocked", "paused", "delayed", "closed", "canceled"].includes(nextStatus ?? "")) {
     return collectUsers(
-      getString(task, "assignedTo"),
-      getString(relatedStory, "assignedTo"),
-      getString(relatedStory, "openedBy"),
+      ...getUserIds(task, "assignedTo"),
+      ...getUserIds(relatedStory, "assignedTo"),
+      ...getUserIds(relatedStory, "openedBy"),
     );
   }
   return [];
 }
 
 function resolveNextTesterForTask(task: JsonObject, relatedStory: JsonObject, input: BaseNotifyInput): string[] {
-  const nextStatus = input.newStatus ?? getString(task, "status");
+  const nextStatus = normalizeStatusForRule(input.newStatus ?? getString(task, "status"));
   if (["done", "closed", "canceled"].includes(nextStatus ?? "")) {
     return collectUsers(
-      getString(task, "finishedBy"),
-      getString(task, "closedBy"),
-      getString(relatedStory, "reviewedBy"),
-      getString(relatedStory, "reviewer"),
+      ...getUserIds(task, "finishedBy"),
+      ...getUserIds(task, "closedBy"),
+      ...getUserIds(relatedStory, "reviewedBy"),
+      ...getUserIds(relatedStory, "reviewer"),
     );
   }
   return [];
@@ -686,7 +735,7 @@ function resolveNextTesterForBug(bug: JsonObject, relatedStory: JsonObject, inpu
 function resolveNextDevForStory(story: JsonObject, input: BaseNotifyInput): string[] {
   const nextStatus = input.newStatus ?? getString(story, "status");
   if (["activate", "active", "planned", "projected", "close", "closed", "suspended", "rejected"].includes(nextStatus ?? "")) {
-    return collectUsers(getString(story, "assignedTo"), getString(story, "openedBy"));
+    return collectUsers(...getUserIds(story, "assignedTo"), ...getUserIds(story, "openedBy"));
   }
   return [];
 }
@@ -694,10 +743,10 @@ function resolveNextDevForStory(story: JsonObject, input: BaseNotifyInput): stri
 function resolveNextTesterForStory(story: JsonObject, input: BaseNotifyInput): string[] {
   const nextStatus = input.newStatus ?? getString(story, "status");
   if (["done", "verified", "closed", "close"].includes(nextStatus ?? "")) {
-    return collectUsers(getString(story, "reviewedBy"), getString(story, "reviewer"), getString(story, "closedBy"));
+    return collectUsers(...getUserIds(story, "reviewedBy"), ...getUserIds(story, "reviewer"), ...getUserIds(story, "closedBy"));
   }
   if (["planned", "projected", "active"].includes(nextStatus ?? "")) {
-    return collectUsers(getString(story, "reviewedBy"), getString(story, "reviewer"));
+    return collectUsers(...getUserIds(story, "reviewedBy"), ...getUserIds(story, "reviewer"));
   }
   return [];
 }
