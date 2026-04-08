@@ -1,13 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { printJson, type JsonObject, type JsonValue } from "../shared/zentao_client";
 import { handleContactSyncPayload, isContactSyncPayload } from "./wecom_contact_sync";
-import { extractText, extractUserid, parseJsonInput } from "../shared/wecom_payload";
+import { extractAttachmentInfo, extractText, extractUserid, parseJsonInput, type WecomMessagePayload } from "../shared/wecom_payload";
 import { classifyWecomIntentWithLlm, type LlmIntentDecision } from "./llm_intent_router";
 import { buildMissingArgsReply, buildRouteHelpText, buildScriptErrorReply, buildScriptResultReply } from "./wecom_reply_formatter";
 import { collectMissingArgs, extractRouteArgs, findRouteByIntent, findRouteMatch, loadIntentRoutes, normalizeRouteArgs, type IntentRoute, type RouteMatch } from "./wecom_route_resolver";
+import { WecomClient } from "../shared/wecom_client";
 
 interface CallbackPayload extends JsonObject {
   content?: string;
@@ -18,6 +20,18 @@ interface CallbackPayload extends JsonObject {
 }
 
 const PACKAGE_ROOT = path.resolve(__dirname, "../../..");
+const IMPORT_TASK_TRIGGERS = [
+  "导入任务",
+  "批量导入任务",
+  "excel导入任务",
+  "导任务",
+];
+
+interface ImportTaskCommand {
+  sourceUrl?: string;
+  execution?: string;
+  assignedTo?: string;
+}
 
 function toCliArgs(args: Record<string, string>): string[] {
   const entries = Object.entries(args).filter(([, value]) => typeof value === "string" && value.trim());
@@ -43,6 +57,125 @@ function runScript(route: IntentRoute, args: Record<string, string>): JsonObject
       route_script: route.script,
       route_args: args,
     } satisfies JsonObject;
+  }
+}
+
+function extractSourceUrl(text: string): string | undefined {
+  const match = text.match(/https?:\/\/\S+/iu);
+  return match?.[0]?.replace(/[)\]}>，。；;]+$/u, "");
+}
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[^A-Za-z0-9._-]+/g, "_");
+}
+
+function isImportTaskRequest(text: string, payload: WecomMessagePayload): boolean {
+  if (IMPORT_TASK_TRIGGERS.some((trigger) => text.includes(trigger))) {
+    return true;
+  }
+
+  return extractAttachmentInfo(payload) !== null;
+}
+
+function extractImportTaskCommand(text: string): ImportTaskCommand {
+  const command: ImportTaskCommand = {};
+  command.sourceUrl = extractSourceUrl(text);
+
+  const executionMatch = text.match(/(?:执行|迭代|execution)\s*[#：:=-]?\s*(\d+)/iu);
+  if (executionMatch?.[1]) {
+    command.execution = executionMatch[1];
+  }
+
+  const assignedToMatch = text.match(/(?:指派给|负责人|assigned-to|assignedto)\s*[#：:=-]?\s*([^\s，。,；;]+)/iu);
+  if (assignedToMatch?.[1]) {
+    command.assignedTo = assignedToMatch[1].trim();
+  }
+
+  return command;
+}
+
+async function dispatchImportTask(text: string, userid: string, payload: WecomMessagePayload): Promise<JsonObject> {
+  const command = extractImportTaskCommand(text);
+  const attachment = extractAttachmentInfo(payload);
+  const missingArgs: string[] = [];
+  if (!command.sourceUrl && !attachment) {
+    missingArgs.push("Excel/CSV 地址或企微附件");
+  }
+  if (!command.execution) {
+    missingArgs.push("execution/执行ID");
+  }
+
+  if (missingArgs.length > 0) {
+    return {
+      ok: true,
+      userid,
+      intent: "import-tasks-from-excel",
+      missing_args: missingArgs,
+      reply_text: [
+        "已识别为批量导入任务请求。",
+        `当前缺少必要参数：${missingArgs.join("、")}`,
+        "示例：导入任务 https://example.com/tasks.xlsx 执行 12",
+      ].join("\n"),
+    };
+  }
+
+  let tempFilePath: string | null = null;
+  try {
+    const cliArgs = ["--execution", command.execution as string, "--userid", userid];
+    if (command.sourceUrl) {
+      cliArgs.push("--source-url", command.sourceUrl);
+    } else if (attachment) {
+      const wecomClient = new WecomClient();
+      const mediaFile = await wecomClient.downloadMedia(attachment.mediaId, attachment.filename);
+      const filename = sanitizeFilename(mediaFile.filename || `${attachment.mediaId}.bin`);
+      tempFilePath = path.join(tmpdir(), `openclaw-zentao-import-${Date.now()}-${filename}`);
+      writeFileSync(tempFilePath, mediaFile.buffer);
+      cliArgs.push("--source-file", tempFilePath);
+    }
+    if (command.assignedTo) {
+      cliArgs.push("--assigned-to", command.assignedTo);
+    }
+    const output = execFileSync("npm", ["run", "--silent", "import-tasks-from-excel", "--", ...cliArgs], {
+      cwd: PACKAGE_ROOT,
+      encoding: "utf8",
+    }).trim();
+    const result = parseJsonInput(output, "npm run import-tasks-from-excel") as JsonObject;
+    return {
+      ...result,
+      ok: result.ok === undefined ? true : result.ok,
+      userid,
+      intent: "import-tasks-from-excel",
+      route_script: "import-tasks-from-excel",
+      route_args: {
+        sourceUrl: command.sourceUrl,
+        mediaId: attachment?.mediaId,
+        filename: attachment?.filename,
+        execution: command.execution,
+        assignedTo: command.assignedTo,
+      },
+      reply_text:
+        typeof result.reply_text === "string" && result.reply_text.trim()
+          ? result.reply_text
+          : "批量导入任务执行完成。",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      userid,
+      intent: "import-tasks-from-excel",
+      route_script: "import-tasks-from-excel",
+      error: message,
+      reply_text: `已识别为批量导入任务请求，但执行失败：${message}`,
+    };
+  } finally {
+    if (tempFilePath) {
+      try {
+        unlinkSync(tempFilePath);
+      } catch {
+        // ignore cleanup failure for temp import file
+      }
+    }
   }
 }
 
@@ -112,6 +245,15 @@ async function main(): Promise<void> {
 
   if (!userid) {
     throw new Error("Cannot determine WeCom userid from callback payload.");
+  }
+
+  if (isImportTaskRequest(text, payload)) {
+    const result = await dispatchImportTask(text, userid, payload);
+    printJson({
+      ...result,
+      route_source: "wecom_import_special",
+    });
+    return;
   }
 
   const valuesRecord = values as Record<string, string | boolean | undefined>;

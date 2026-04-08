@@ -8,6 +8,8 @@
         "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "wecom-callback": "npm run build && node dist/scripts/callbacks/wecom_callback.js",
         "wecom-contact-sync": "npm run build && node dist/scripts/callbacks/wecom_contact_sync.js",
+        "notify-task-change": "npm run build && node dist/scripts/actions/update_task_status.js",
+        "notify-bug-change": "npm run build && node dist/scripts/actions/update_bug_status.js",
         "sync-user": "npm run build && node dist/scripts/sync_user.js",
         "query-programs": "npm run build && node dist/scripts/queries/query_programs.js",
         "query-products": "npm run build && node dist/scripts/queries/query_products.js",
@@ -32,6 +34,7 @@
         "query-product-stories": "npm run build && node dist/scripts/queries/query_product_stories.js",
         "query-my-stories": "npm run build && node dist/scripts/queries/query_my_stories.js",
         "query-story-detail": "npm run build && node dist/scripts/queries/query_story_detail.js",
+        "query-notification-audit": "npm run build && node dist/scripts/queries/query_notification_audit.js",
         "create-product": "npm run build && node dist/scripts/actions/create_product.js",
         "create-product-modules": "npm run build && node dist/scripts/actions/create_product_modules.js",
         "create-product-with-modules": "npm run build && node dist/scripts/actions/create_product_with_modules.js",
@@ -47,6 +50,7 @@
         "link-release-items": "npm run build && node dist/scripts/actions/link_release_items.js",
         "link-execution-stories": "npm run build && node dist/scripts/actions/link_execution_stories.js",
         "create-task": "npm run build && node dist/scripts/actions/create_task.js",
+        "import-tasks-from-excel": "npm run build && node dist/scripts/actions/import_tasks_from_excel.js",
         "create-testcase": "npm run build && node dist/scripts/actions/create_testcase.js",
         "query-testtasks": "npm run build && node dist/scripts/queries/query_testtasks.js",
         "create-testtask": "npm run build && node dist/scripts/actions/create_testtask.js",
@@ -61,6 +65,10 @@
         "assign-bug": "npm run build && node dist/scripts/actions/assign_bug.js",
         "query-regression-bugs": "npm run build && node dist/scripts/queries/query_regression_bugs.js",
         "query-closure-items": "npm run build && node dist/scripts/queries/query_closure_items.js"
+    },
+    "dependencies": {
+        "xlsx": "^0.18.5",
+        "yaml": "^2.8.3"
     },
     "devDependencies": {
         "@types/node": "^20.17.30",

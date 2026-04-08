@@ -53,12 +53,34 @@ interface WecomApiResponse extends JsonObject {
   errmsg?: string;
 }
 
+interface WecomSendMessageRequest extends JsonObject {
+  touser?: string;
+  toparty?: string;
+  totag?: string;
+  msgtype: "text" | "markdown";
+  agentid: number;
+  text?: {
+    content: string;
+  };
+  markdown?: {
+    content: string;
+  };
+  safe?: 0 | 1;
+}
+
 interface WecomDepartmentListResponse extends WecomApiResponse {
   department?: JsonValue;
 }
 
 interface WecomUserListResponse extends WecomApiResponse {
   userlist?: JsonValue;
+}
+
+export interface WecomMediaFile {
+  buffer: Buffer;
+  filename: string;
+  contentType: string | null;
+  mediaId: string;
 }
 
 function readWecomConfig(): WecomConfig {
@@ -121,6 +143,117 @@ function createHttpsGetJson(requestUrl: string): Promise<WecomApiResponse> {
   });
 }
 
+function createHttpsPostJson(requestUrl: string, payload: JsonObject): Promise<WecomApiResponse> {
+  return new Promise((resolve, reject) => {
+    const bodyText = JSON.stringify(payload);
+    const request = httpsRequest(
+      requestUrl,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(bodyText),
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          const responseText = Buffer.concat(chunks).toString("utf8");
+          if ((response.statusCode ?? 500) < 200 || (response.statusCode ?? 500) >= 300) {
+            reject(
+              new Error(
+                `WeCom request failed with status ${response.statusCode ?? 500}: ${responseText}`,
+              ),
+            );
+            return;
+          }
+          try {
+            resolve(parseJson<WecomApiResponse>(responseText, requestUrl));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+
+    request.on("error", reject);
+    request.write(bodyText);
+    request.end();
+  });
+}
+
+function createHttpsGetBuffer(requestUrl: string): Promise<{
+  body: Buffer;
+  headers: Record<string, string | string[] | undefined>;
+  statusCode: number;
+}> {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      requestUrl,
+      {
+        method: "GET",
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          resolve({
+            body: Buffer.concat(chunks),
+            headers: response.headers,
+            statusCode: response.statusCode ?? 500,
+          });
+        });
+      },
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function headerToString(value: string | string[] | undefined): string | null {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    const joined = value.join("; ").trim();
+    return joined || null;
+  }
+  return null;
+}
+
+function inferFilenameFromHeaders(
+  headers: Record<string, string | string[] | undefined>,
+  fallbackMediaId: string,
+): string {
+  const disposition = headerToString(headers["content-disposition"]);
+  if (disposition) {
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]);
+    }
+
+    const basicMatch = disposition.match(/filename="?([^"]+)"?/i);
+    if (basicMatch?.[1]) {
+      return basicMatch[1];
+    }
+  }
+
+  const contentType = headerToString(headers["content-type"]) ?? "";
+  if (contentType.includes("csv")) {
+    return `${fallbackMediaId}.csv`;
+  }
+  if (contentType.includes("sheet") || contentType.includes("excel")) {
+    return `${fallbackMediaId}.xlsx`;
+  }
+  return `${fallbackMediaId}.bin`;
+}
 function ensureOk<T extends WecomApiResponse>(response: T, action: string): T {
   if ((response.errcode ?? 0) !== 0) {
     throw new Error(
@@ -138,6 +271,8 @@ export class WecomClient {
   private readonly corpSecret?: string;
 
   private readonly contactSecret?: string;
+
+  private readonly agentId?: number;
 
   readonly rootDepartmentId: number;
 
@@ -179,6 +314,12 @@ export class WecomClient {
         process.env.WXWORK_AUTO_SYNC_USER ??
         config.auto_sync_user,
       true,
+    );
+    this.agentId = normalizeOptionalPositiveInteger(
+      options?.agent_id ??
+        process.env.WECOM_AGENT_ID ??
+        process.env.WXWORK_AGENT_ID ??
+        config.agent_id,
     );
   }
 
@@ -268,6 +409,77 @@ export class WecomClient {
     return Array.from(userMap.values());
   }
 
+  async sendAppMessage(payload: Omit<WecomSendMessageRequest, "agentid"> & { agentid?: number }): Promise<WecomApiResponse> {
+    const accessToken = await this.getAccessToken();
+    const agentid = payload.agentid ?? this.agentId;
+    if (!agentid || !Number.isFinite(agentid) || agentid <= 0) {
+      throw new Error("Missing WeCom agent_id. Fill wecom.agent_id in config.json.");
+    }
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/message/send`);
+    url.searchParams.set("access_token", accessToken);
+    return ensureOk(
+      await createHttpsPostJson(url.toString(), {
+        ...payload,
+        agentid,
+      }),
+      "message.send",
+    );
+  }
+
+  async sendMarkdownToUsers(userids: string[], content: string): Promise<WecomApiResponse> {
+    const normalizedUsers = Array.from(
+      new Set(
+        userids
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+    if (normalizedUsers.length === 0) {
+      throw new Error("WeCom markdown message requires at least one userid");
+    }
+    return this.sendAppMessage({
+      touser: normalizedUsers.join("|"),
+      msgtype: "markdown",
+      markdown: { content },
+      safe: 0,
+    });
+  }
+
+  async downloadMedia(mediaId: string, preferredFilename?: string): Promise<WecomMediaFile> {
+    const normalizedMediaId = mediaId.trim();
+    if (!normalizedMediaId) {
+      throw new Error("WeCom media_id cannot be empty");
+    }
+
+    const accessToken = await this.getAccessToken();
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/media/get`);
+    url.searchParams.set("access_token", accessToken);
+    url.searchParams.set("media_id", normalizedMediaId);
+
+    const response = await createHttpsGetBuffer(url.toString());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new Error(`WeCom media.get failed with status ${response.statusCode}`);
+    }
+
+    const contentType = headerToString(response.headers["content-type"]);
+    if (contentType?.includes("application/json")) {
+      const payload = parseJson<WecomApiResponse>(response.body.toString("utf8"), url.toString());
+      ensureOk(payload, "media.get");
+      throw new Error("WeCom media.get returned JSON but no file content");
+    }
+
+    if (response.body.length === 0) {
+      throw new Error("WeCom media.get returned empty file content");
+    }
+
+    return {
+      buffer: response.body,
+      filename: preferredFilename?.trim() || inferFilenameFromHeaders(response.headers, normalizedMediaId),
+      contentType,
+      mediaId: normalizedMediaId,
+    };
+  }
+
   private async getAccessToken(): Promise<string> {
     const cached = this.readTokenCache();
     if (cached && cached.expiresAt > Date.now() + TOKEN_REFRESH_BUFFER_MS) {
@@ -353,6 +565,17 @@ function normalizePositiveInteger(
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function normalizeOptionalPositiveInteger(value: number | string | undefined): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
   }
   return Math.floor(parsed);
 }

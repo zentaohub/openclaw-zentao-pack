@@ -1,0 +1,9 @@
+{
+  "userid": "admin",
+  "msgtype": "file",
+  "content": "导入任务 执行 4",
+  "body": {
+    "media_id": "MEDIA_ID_PLACEHOLDER",
+    "fileName": "task-import-template.xlsx"
+  }
+}

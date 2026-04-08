@@ -1,0 +1,397 @@
+version: 1
+description: 禅道企微通知消息模板（MVP 第一版）
+
+defaults:
+  msgtype: markdown
+  include_detail_link: true
+  include_operator: true
+  include_time: true
+  empty_fallback: '-'
+
+templates:
+  story_created:
+    title: 需求新建通知
+    msgtype: markdown
+    content: |
+      ### 需求新建通知
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 模块：{{story.module_name}}
+      > 优先级：P{{story.pri}}
+      > 提出人：{{story.requester_name}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      {{story.summary}}
+      [查看详情]({{links.story_detail}})
+
+  story_core_field_changed:
+    title: 需求核心信息变更
+    msgtype: markdown
+    content: |
+      ### 需求核心信息变更
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 变更字段：{{change.changed_fields_text}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：需求核心字段已更新，请及时确认是否影响排期、范围或验收标准。
+      [查看详情]({{links.story_detail}})
+
+  story_status_planned:
+    title: 需求状态更新
+    msgtype: markdown
+    content: |
+      ### 需求状态更新
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.story_detail}})
+
+  story_rejected_closed:
+    title: 需求关闭/拒绝通知
+    msgtype: markdown
+    content: |
+      ### 需求关闭/拒绝通知
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 原因：{{change.reason}}
+      [查看详情]({{links.story_detail}})
+
+  story_priority_changed:
+    title: 需求优先级变更
+    msgtype: markdown
+    content: |
+      ### 需求优先级变更
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 优先级：P{{change.old_priority}} → P{{change.new_priority}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：请确认是否影响当前排期与资源安排。
+      [查看详情]({{links.story_detail}})
+
+  story_assignee_changed:
+    title: 需求负责人变更
+    msgtype: markdown
+    content: |
+      ### 需求负责人变更
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 负责人：{{change.old_assignee_name}} → {{change.new_assignee_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.story_detail}})
+
+  story_plan_changed:
+    title: 需求计划变更
+    msgtype: markdown
+    content: |
+      ### 需求计划变更
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 变更字段：{{change.changed_fields_text}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：请确认是否影响版本上线时间或交付承诺。
+      [查看详情]({{links.story_detail}})
+
+  story_done:
+    title: 需求完成通知
+    msgtype: markdown
+    content: |
+      ### 需求完成通知
+      > 标题：{{story.title}}
+      > 编号：#{{story.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{story.assigned_to_name}}
+      > 验证人：{{story.tester_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.story_detail}})
+
+  bug_created_high:
+    title: 高优 Bug 新建通知
+    msgtype: markdown
+    content: |
+      ### 高优 Bug 新建通知
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 严重程度：S{{bug.severity}}
+      > 优先级：P{{bug.pri}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 提出人：{{bug.opened_by_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：该 Bug 已达到高优先级，请优先处理。
+      [查看详情]({{links.bug_detail}})
+
+  bug_created_normal:
+    title: Bug 新建通知
+    msgtype: markdown
+    content: |
+      ### Bug 新建通知
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 严重程度：S{{bug.severity}}
+      > 优先级：P{{bug.pri}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 提出人：{{bug.opened_by_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.bug_detail}})
+
+  bug_assignee_changed:
+    title: Bug 指派变更
+    msgtype: markdown
+    content: |
+      ### Bug 指派变更
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 负责人：{{change.old_assignee_name}} → {{change.new_assignee_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.bug_detail}})
+
+  bug_resolved_high:
+    title: 高优 Bug 已修复
+    msgtype: markdown
+    content: |
+      ### 高优 Bug 已修复
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 解决方案：{{bug.resolution_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：请测试尽快验证修复结果。
+      [查看详情]({{links.bug_detail}})
+
+  bug_resolved_normal:
+    title: Bug 已修复
+    msgtype: markdown
+    content: |
+      ### Bug 已修复
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.bug_detail}})
+
+  bug_reopened_high:
+    title: 高优 Bug 重新打开
+    msgtype: markdown
+    content: |
+      ### 高优 Bug 重新打开
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：该 Bug 再次进入处理流程，可能影响版本交付，请立即关注。
+      [查看详情]({{links.bug_detail}})
+
+  bug_reopened_normal:
+    title: Bug 重新打开
+    msgtype: markdown
+    content: |
+      ### Bug 重新打开
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.bug_detail}})
+
+  bug_closed_high:
+    title: 高优 Bug 已关闭
+    msgtype: markdown
+    content: |
+      ### 高优 Bug 已关闭
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.bug_detail}})
+
+  bug_closed_normal:
+    title: Bug 已关闭
+    msgtype: markdown
+    content: |
+      ### Bug 已关闭
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.bug_detail}})
+
+  bug_priority_up:
+    title: Bug 优先级升级
+    msgtype: markdown
+    content: |
+      ### Bug 优先级升级
+      > 标题：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 优先级：P{{change.old_priority}} → P{{change.new_priority}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：该 Bug 优先级已提升，请重新评估处理顺序。
+      [查看详情]({{links.bug_detail}})
+
+  bug_affect_story_acceptance:
+    title: Bug 影响需求验收
+    msgtype: markdown
+    content: |
+      ### Bug 影响需求验收
+      > Bug：{{bug.title}}
+      > 编号：#{{bug.id}}
+      > 关联需求：{{story.title}}
+      > 需求编号：#{{story.id}}
+      > 当前负责人：{{bug.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 说明：该 Bug 已影响需求验收或版本发布，请尽快确认处理方案。
+      [查看 Bug]({{links.bug_detail}})
+
+  task_created_key:
+    title: 关键任务新建
+    msgtype: markdown
+    content: |
+      ### 关键任务新建
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 关联需求：{{task.story_title}}
+      > 创建人：{{task.creator_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})
+
+  task_created_normal:
+    title: 任务新建
+    msgtype: markdown
+    content: |
+      ### 任务新建
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 创建人：{{task.creator_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})
+
+  task_assignee_changed:
+    title: 任务转派通知
+    msgtype: markdown
+    content: |
+      ### 任务转派通知
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 负责人：{{change.old_assignee_name}} → {{change.new_assignee_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})
+
+  task_done_key:
+    title: 关键任务完成
+    msgtype: markdown
+    content: |
+      ### 关键任务完成
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 验证人：{{task.tester_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})
+
+  task_done_normal:
+    title: 任务完成
+    msgtype: markdown
+    content: |
+      ### 任务完成
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})
+
+  task_blocked_key:
+    title: 关键任务阻塞/延期
+    msgtype: markdown
+    content: |
+      ### 关键任务阻塞/延期
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 关联需求：{{task.story_title}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 原因：{{change.reason}}
+      > 说明：该任务已影响需求交付，请立即关注。
+      [查看详情]({{links.task_detail}})
+
+  task_blocked_normal:
+    title: 任务阻塞/延期
+    msgtype: markdown
+    content: |
+      ### 任务阻塞/延期
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      > 原因：{{change.reason}}
+      [查看详情]({{links.task_detail}})
+
+  task_closed_story:
+    title: 关联需求任务关闭
+    msgtype: markdown
+    content: |
+      ### 关联需求任务关闭
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 关联需求：{{task.story_title}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})
+
+  task_closed_normal:
+    title: 任务关闭
+    msgtype: markdown
+    content: |
+      ### 任务关闭
+      > 标题：{{task.name}}
+      > 编号：#{{task.id}}
+      > 状态：{{change.old_status_name}} → {{change.new_status_name}}
+      > 当前负责人：{{task.assigned_to_name}}
+      > 操作人：{{operator.name}}
+      > 时间：{{event.time}}
+      [查看详情]({{links.task_detail}})

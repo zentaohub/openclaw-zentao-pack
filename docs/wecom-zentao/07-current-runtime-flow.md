@@ -258,6 +258,64 @@ LLM 可判定为：
 
 现在的能力特点是：
 
+## 10. 主动通知日志（当前实现）
+
+当前“业务执行成功 -> 规则命中 -> 企微主动通知”这条链，已经增加了本地通知日志留痕。
+
+### 10.1 日志文件
+
+- 明细追加日志：`tmp/notification-audit/notification-audit.jsonl`
+- 最近 50 条快照：`tmp/notification-audit/notification-audit.latest.json`
+- 面向人看的总文档：`docs/overview/通知链路记录.md`
+
+### 10.2 每条日志记录的内容
+
+- 对象类型：`story / bug / task`
+- 事件类型：`status_changed / assignee_changed`
+- 对象 ID
+- 命中的规则编码 `rule_code`
+- 使用的模板 `template`
+- 操作人 `operator_userid`
+- 解析出的 `next_dev`
+- 解析出的 `next_tester`
+- 实际发送对象 `receivers`
+- 发送是否成功 `ok`
+- 跳过原因 `skipped_reason`
+
+### 10.3 作用
+
+- 方便你验证“有没有发对人”
+- 方便排查为什么没发消息
+- 方便后续补失败重试或后台管理页
+
+### 10.4 当前建议
+
+- 联调阶段优先查看 `notification-audit.latest.json`
+- 如果要追完整历史，再看 `notification-audit.jsonl`
+- 如果要给团队统一查看，优先看 `docs/overview/通知链路记录.md`
+
+### 10.5 查询脚本
+
+当前已补充通知日志查询脚本：
+
+```bash
+npm run query-notification-audit
+npm run query-notification-audit -- --latest 10
+npm run query-notification-audit -- --object bug
+npm run query-notification-audit -- --object bug --event status_changed --result failed
+npm run query-notification-audit -- --entity 13
+```
+
+常用筛选参数：
+
+- `--object story|bug|task`
+- `--event status_changed|assignee_changed`
+- `--result success|failed`
+- `--latest 20`
+- `--entity 13`
+- `--rule bug_resolved_normal_notify`
+- `--operator admin`
+
 - 有统一入口
 - 有文本归一化
 - 有 YAML 快路由

@@ -15,6 +15,84 @@
 - 处理发布关联、执行关联、测试单关联等操作
 - 复用共享禅道 / 企微客户端能力
 
+## 企微主动通知规划
+
+当前仓库已补充一套面向“禅道变更 -> 企微自建应用主动通知”的 MVP 文档，适用于以下场景：
+
+- 需求新增、关闭、优先级变化、计划变化
+- 高优 Bug 新建、重开、修复、关闭、优先级升级
+- 关键任务阻塞、延期、转派、完成
+
+推荐阅读顺序：
+
+- `docs/wecom-zentao/11-notification-rules-mvp.yaml`
+  - 规则配置总表
+- `docs/wecom-zentao/13-receiver-resolution-spec.md`
+  - 接收人如何计算
+- `docs/wecom-zentao/12-notification-templates-mvp.yaml`
+  - 消息模板定义
+
+推荐实现路径：
+
+1. 业务脚本执行成功后产出标准事件
+2. 事件命中通知规则
+3. 按接收人解析规则计算 direct / cc
+4. 用企微自建应用发送 markdown 消息
+
+通知日志查看入口：
+
+- 总览文档：`docs/overview/通知链路记录.md`
+- 明细日志：`tmp/notification-audit/notification-audit.jsonl`
+- 查询脚本：`npm run query-notification-audit -- --latest 20`
+
+### 通知链路总览使用手册
+
+#### 1. 规则与模板在哪里看
+
+- 规则：`docs/wecom-zentao/11-notification-rules-mvp.yaml`
+- 模板：`docs/wecom-zentao/12-notification-templates-mvp.yaml`
+- 接收人解析：`docs/wecom-zentao/13-receiver-resolution-spec.md`
+
+#### 2. 通知执行结果在哪里看
+
+- 面向人看的总览：`docs/overview/通知链路记录.md`
+- 面向程序的明细：`tmp/notification-audit/notification-audit.jsonl`
+- 最近快照：`tmp/notification-audit/notification-audit.latest.json`
+
+#### 3. 命令行怎么查
+
+```bash
+npm run query-notification-audit
+npm run query-notification-audit -- --latest 10
+npm run query-notification-audit -- --object bug --result failed
+npm run query-notification-audit -- --entity 13
+```
+
+#### 4. 服务器联调怎么测
+
+推荐优先测 Bug 链路：
+
+```bash
+npm run update-bug-status -- --bug 13 --status activate --assigned-to admin --userid admin --comment "服务器联调 activate"
+npm run update-bug-status -- --bug 13 --status resolve --resolution fixed --userid admin --comment "服务器联调 resolve"
+npm run query-notification-audit -- --latest 5
+```
+
+#### 5. 联调重点看什么
+
+- `notification.ok`
+- `notification.rule_code`
+- `notification.sent_to`
+- `notification.skipped_reason`
+- `docs/overview/通知链路记录.md`
+
+#### 6. 目前最常见阻塞点
+
+- 企微自建应用可信 IP 未放行
+- 目标成员不在应用可见范围
+- 禅道对象字段缺失，导致下一步处理人无法正确解析
+- 状态值与规则不一致（当前已补齐 `activate/resolve/close` 常见写法）
+
 ## 常用命令
 
 - `npm run build`
@@ -27,6 +105,9 @@
 - `npm run query-testcases -- --product 1`
 - `npm run query-releases -- --product 1`
 - `npm run create-release -- --product 1 --name "示例发布" --date "2026-03-24" --desc "发布说明"`
+- `npm run import-tasks-from-excel -- --source-url "https://example.com/tasks.xlsx" --execution 12 --userid admin`
+- `npm run import-tasks-from-excel -- --source-file examples/task-import-template.csv --execution 12 --userid admin --dry-run`
+- `npm run import-tasks-from-excel -- --source-file examples/task-import-template.xlsx --execution 4 --userid admin`
 
 ## 推荐查询入口
 
@@ -66,6 +147,12 @@
 
 - `create-release` 现在创建成功后会直接返回创建出的 `release` 对象。
 - 不再只返回成功消息而拿不到新建发布详情。
+- `import-tasks-from-excel` 支持通过本地文件或 URL 读取 `.xlsx` / `.csv`，按表格行批量创建执行任务。
+- 企微回调现支持 URL 或附件两种入口：
+- 文本 URL：`导入任务 https://example.com/tasks.xlsx 执行 12`
+- 企微附件：上传 Excel 文件，并在消息中补 `执行 12` 之类的上下文
+- 示例模板见 `examples/task-import-template.csv`，建议至少包含 `任务名称` 列。
+- 默认会按“同一执行下任务名称完全相同”做重复导入保护，命中后跳过；如需强制重复导入，可传 `--allow-duplicates`。
 
 ## 当前配置优先级
 
@@ -231,3 +318,4 @@ npm run build
 - `README.md` 仅做快速入口说明。
 - 能力范围、输出规则与推荐模块以 `SKILL.md` 和 `agents/openai.yaml` 为准。
 - 集成方式与回调样例见 `docs/integration/WECOM_CALLBACK.md`。
+- 企微主动通知方案文档见 `docs/wecom-zentao/README.md` 与 `docs/wecom-zentao/11-13` 系列文档。

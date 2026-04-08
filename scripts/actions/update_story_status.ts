@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { printJson, type JsonObject, ZentaoClient } from "../shared/zentao_client";
+import { notifyStoryStatusChanged } from "../shared/wecom_notify";
 
 const ALLOWED_STATUSES = new Set(["close", "activate"]);
 
@@ -39,10 +40,38 @@ async function main(): Promise<void> {
   if (values.comment) payload.comment = values.comment;
   if (values["assigned-to"]) payload.assignedTo = values["assigned-to"];
   if (values["closed-reason"]) payload.closedReason = values["closed-reason"];
+  const storyId = requiredNumber(values.story, "story");
 
   const client = new ZentaoClient({ userid: values.userid });
   await client.login(false);
-  const result = await client.updateStoryStatus(requiredNumber(values.story, "story"), payload);
+  let oldStatus: string | undefined;
+  try {
+    const before = await client.getWebJsonViewData(`/story-view-${storyId}.json`);
+    const story = typeof before.story === "object" && before.story !== null && !Array.isArray(before.story)
+      ? before.story as JsonObject
+      : before;
+    oldStatus = typeof story.status === "string" ? story.status : undefined;
+  } catch {
+    oldStatus = undefined;
+  }
+  const result = await client.updateStoryStatus(storyId, payload);
+  let notification: JsonObject | undefined;
+  try {
+    notification = await notifyStoryStatusChanged({
+      storyId,
+      operatorUserid: values.userid,
+      oldStatus,
+      newStatus: status,
+      comment: values.comment,
+      newAssignee: values["assigned-to"],
+      closedReason: values["closed-reason"],
+    });
+  } catch (error) {
+    notification = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
   printJson({
     ok: true,
     action: "update-story-status",
@@ -53,6 +82,7 @@ async function main(): Promise<void> {
     closed_reason: payload.closedReason ?? null,
     message: result.message ?? result.msg ?? "需求状态已更新",
     raw: result,
+    notification,
   });
 }
 
