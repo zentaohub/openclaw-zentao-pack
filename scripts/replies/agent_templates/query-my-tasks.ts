@@ -79,7 +79,11 @@ export const queryMyTasksAgentTemplate: ReplyTemplate = {
           { keyname: "角色", value: displayZentaoRole },
           ...statusCounts.slice(0, 2),
         ],
-        task_id: `query-my-tasks-${context.userid}`,
+        card_action: {
+          type: 1,
+          url: process.env.OPENCLAW_WECOM_TEMPLATE_CARD_URL?.trim() || "https://work.weixin.qq.com",
+        },
+        task_id: `query-my-tasks-${context.userid ?? "unknown"}`,
       },
     });
   },
