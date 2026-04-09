@@ -4,8 +4,11 @@ import { asText, getNestedValue, section } from "./_helpers";
 export const queryTestExitReadinessTemplate: ReplyTemplate = {
   name: "query-test-exit-readiness",
   render(context) {
-    const blockers = Array.isArray(context.result.blockers) ? context.result.blockers : [];
-    const blockerLines = blockers.length === 0 ? ["1. 无"] : blockers.map((item, index) => `${index + 1}. ${String(item)}`);
+    const blockers: unknown[] = Array.isArray(context.result.blockers) ? context.result.blockers : [];
+    const blockerLines =
+      blockers.length === 0
+        ? ["1. 无"]
+        : blockers.map((item: unknown, index: number) => `${index + 1}. ${String(item)}`);
     return [
       section("测试准出结论", context.result.ready_for_exit === true ? "可提测" : "不可提测"),
       section("对象", `测试单：${asText(getNestedValue(context.result, "testtask_detail.name"))}（${asText(getNestedValue(context.result, "testtask_detail.id"))}）`),

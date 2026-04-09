@@ -61,7 +61,7 @@ export const queryMyTasksTemplate: ReplyTemplate = {
 
     const tasks = Array.isArray(result.tasks)
       ? result.tasks.filter(
-          (item): item is JsonObject =>
+          (item: unknown): item is JsonObject =>
             typeof item === "object" && item !== null && !Array.isArray(item),
         )
       : [];
@@ -89,7 +89,7 @@ export const queryMyTasksTemplate: ReplyTemplate = {
       return lines.join("\n");
     }
 
-    tasks.slice(0, 10).forEach((task, index) => {
+    tasks.slice(0, 10).forEach((task: JsonObject, index: number) => {
       lines.push(formatTaskLine(task, index));
     });
 

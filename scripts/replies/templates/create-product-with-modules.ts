@@ -17,7 +17,7 @@ export const createProductWithModulesTemplate = createActionTemplate(
       label: "模块列表",
       formatter: (context) =>
         Array.isArray(context.result.module_names)
-          ? context.result.module_names.map((item) => asText(item, "")).filter(Boolean).join("、") || "-"
+          ? context.result.module_names.map((item: unknown) => asText(item, "")).filter(Boolean).join("、") || "-"
           : "-",
     },
   ],

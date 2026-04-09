@@ -27,7 +27,7 @@ export const queryMyTasksAgentTemplate: ReplyTemplate = {
     const result = context.result;
     const tasks = Array.isArray(result.tasks)
       ? result.tasks.filter(
-          (item): item is JsonObject =>
+          (item: unknown): item is JsonObject =>
             typeof item === "object" && item !== null && !Array.isArray(item),
         )
       : [];
@@ -52,7 +52,7 @@ export const queryMyTasksAgentTemplate: ReplyTemplate = {
           }))
         : [];
 
-    const taskLines = tasks.slice(0, 3).map((task, index) => {
+    const taskLines = tasks.slice(0, 3).map((task: JsonObject, index: number) => {
       const name = getNestedValue(task, "name") ?? `任务${index + 1}`;
       const status = getNestedValue(task, "status") ?? "unknown";
       const deadline = getNestedValue(task, "deadline");
