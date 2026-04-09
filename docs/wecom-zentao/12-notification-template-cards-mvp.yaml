@@ -1,0 +1,869 @@
+version: 1
+description: 禅道企微通知模板卡片（MVP 第一版，对应 12-notification-templates-mvp.yaml）
+
+defaults:
+  msgtype: template_card
+  card_type: text_notice
+  source:
+    desc: OpenClaw禅道助手
+    desc_color: 0
+  enable_id_trans: 0
+  enable_duplicate_check: 0
+  duplicate_check_interval: 1800
+
+templates:
+  story_created:
+    title: 需求新建通知
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求新建通知
+        desc: '{{story.title}}'
+      sub_title_text: '{{story.summary}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 模块
+          value: '{{story.module_name}}'
+        - keyname: 优先级
+          value: 'P{{story.pri}}'
+        - keyname: 提出人
+          value: '{{story.requester_name}}'
+        - keyname: 负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_core_field_changed:
+    title: 需求核心信息变更
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求核心信息变更
+        desc: '{{story.title}}'
+      sub_title_text: '需求核心字段已更新，请及时确认是否影响排期、范围或验收标准。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 变更字段
+          value: '{{change.changed_fields_text}}'
+        - keyname: 当前负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_status_planned:
+    title: 需求状态更新
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求状态更新
+        desc: '{{story.title}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 当前负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_rejected_closed:
+    title: 需求关闭/拒绝通知
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求关闭/拒绝通知
+        desc: '{{story.title}}'
+      sub_title_text: '{{change.reason}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 状态变更
+          value: '{{change.old_status_name}} -> {{change.new_status_name}}'
+        - keyname: 当前负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_priority_changed:
+    title: 需求优先级变更
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求优先级变更
+        desc: '{{story.title}}'
+      sub_title_text: '请确认是否影响当前排期与资源安排。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 优先级
+          value: 'P{{change.old_priority}} -> P{{change.new_priority}}'
+        - keyname: 当前负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_assignee_changed:
+    title: 需求负责人变更
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求负责人变更
+        desc: '{{story.title}}'
+      sub_title_text: '{{change.old_assignee_name}} -> {{change.new_assignee_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_plan_changed:
+    title: 需求计划变更
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求计划变更
+        desc: '{{story.title}}'
+      sub_title_text: '请确认是否影响版本上线时间或交付承诺。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 变更字段
+          value: '{{change.changed_fields_text}}'
+        - keyname: 当前负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  story_done:
+    title: 需求完成通知
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 需求完成通知
+        desc: '{{story.title}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{story.id}}'
+        - keyname: 当前负责人
+          value: '{{story.assigned_to_name}}'
+        - keyname: 验证人
+          value: '{{story.tester_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.story_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.story_detail}}'
+
+  bug_created_high:
+    title: 高优 Bug 新建通知
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 高优 Bug 新建通知
+        desc: '{{bug.title}}'
+      sub_title_text: '该 Bug 已达到高优先级，请优先处理。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 严重程度
+          value: 'S{{bug.severity}}'
+        - keyname: 优先级
+          value: 'P{{bug.pri}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 提出人
+          value: '{{bug.opened_by_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_created_normal:
+    title: Bug 新建通知
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 新建通知
+        desc: '{{bug.title}}'
+      sub_title_text: '请关注并安排处理。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 严重程度
+          value: 'S{{bug.severity}}'
+        - keyname: 优先级
+          value: 'P{{bug.pri}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 提出人
+          value: '{{bug.opened_by_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_assignee_changed:
+    title: Bug 指派变更
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 指派变更
+        desc: '{{bug.title}}'
+      sub_title_text: '{{change.old_assignee_name}} -> {{change.new_assignee_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_resolved_high:
+    title: 高优 Bug 已修复
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 高优 Bug 已修复
+        desc: '{{bug.title}}'
+      sub_title_text: '请测试尽快验证修复结果。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 状态变更
+          value: '{{change.old_status_name}} -> {{change.new_status_name}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 解决方案
+          value: '{{bug.resolution_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_resolved_normal:
+    title: Bug 已修复
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 已修复
+        desc: '{{bug.title}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_reopened_high:
+    title: 高优 Bug 重新打开
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 高优 Bug 重新打开
+        desc: '{{bug.title}}'
+      sub_title_text: '该 Bug 再次进入处理流程，请立即关注。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 状态变更
+          value: '{{change.old_status_name}} -> {{change.new_status_name}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_reopened_normal:
+    title: Bug 重新打开
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 重新打开
+        desc: '{{bug.title}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_closed_high:
+    title: 高优 Bug 已关闭
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 高优 Bug 已关闭
+        desc: '{{bug.title}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_closed_normal:
+    title: Bug 已关闭
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 已关闭
+        desc: '{{bug.title}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_priority_up:
+    title: Bug 优先级升级
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 优先级升级
+        desc: '{{bug.title}}'
+      sub_title_text: '该 Bug 优先级已提升，请重新评估处理顺序。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{bug.id}}'
+        - keyname: 优先级
+          value: 'P{{change.old_priority}} -> P{{change.new_priority}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  bug_affect_story_acceptance:
+    title: Bug 影响需求验收
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: Bug 影响需求验收
+        desc: '{{bug.title}}'
+      sub_title_text: '该 Bug 已影响需求验收或版本发布，请尽快确认处理方案。'
+      horizontal_content_list:
+        - keyname: Bug编号
+          value: '#{{bug.id}}'
+        - keyname: 关联需求
+          value: '{{story.title}}'
+        - keyname: 需求编号
+          value: '#{{story.id}}'
+        - keyname: 当前负责人
+          value: '{{bug.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看Bug
+          url: '{{links.bug_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.bug_detail}}'
+
+  task_created_key:
+    title: 关键任务新建
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 关键任务新建
+        desc: '{{task.name}}'
+      sub_title_text: '请尽快关注关键任务进展。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 关联需求
+          value: '{{task.story_title}}'
+        - keyname: 创建人
+          value: '{{task.creator_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_created_normal:
+    title: 任务新建
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 任务新建
+        desc: '{{task.name}}'
+      sub_title_text: '请关注任务安排。'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 创建人
+          value: '{{task.creator_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_assignee_changed:
+    title: 任务转派通知
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 任务转派通知
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.old_assignee_name}} -> {{change.new_assignee_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_done_key:
+    title: 关键任务完成
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 关键任务完成
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 验证人
+          value: '{{task.tester_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_done_normal:
+    title: 任务完成
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 任务完成
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_blocked_key:
+    title: 关键任务阻塞/延期
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 关键任务阻塞/延期
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.reason}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 状态变更
+          value: '{{change.old_status_name}} -> {{change.new_status_name}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 关联需求
+          value: '{{task.story_title}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_blocked_normal:
+    title: 任务阻塞/延期
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 任务阻塞/延期
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.reason}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 状态变更
+          value: '{{change.old_status_name}} -> {{change.new_status_name}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_closed_story:
+    title: 关联需求任务关闭
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 关联需求任务关闭
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 关联需求
+          value: '{{task.story_title}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'
+
+  task_closed_normal:
+    title: 任务关闭
+    msgtype: template_card
+    template_card:
+      card_type: text_notice
+      source:
+        desc: OpenClaw禅道助手
+        desc_color: 0
+      main_title:
+        title: 任务关闭
+        desc: '{{task.name}}'
+      sub_title_text: '{{change.old_status_name}} -> {{change.new_status_name}}'
+      horizontal_content_list:
+        - keyname: 编号
+          value: '#{{task.id}}'
+        - keyname: 当前负责人
+          value: '{{task.assigned_to_name}}'
+        - keyname: 操作人
+          value: '{{operator.name}}'
+        - keyname: 时间
+          value: '{{event.time}}'
+      jump_list:
+        - type: 1
+          title: 查看详情
+          url: '{{links.task_detail}}'
+      card_action:
+        type: 1
+        url: '{{links.task_detail}}'

@@ -64,6 +64,7 @@ interface NotificationTemplateDefinition extends JsonObject {
   title?: string;
   msgtype?: string;
   content?: string;
+  template_card?: JsonObject;
 }
 
 interface NotificationTemplatesConfig extends JsonObject {
@@ -114,7 +115,7 @@ interface ResolvedReceivers {
 
 const DOCS_DIR = resolveDocsDir();
 const RULES_PATH = path.join(DOCS_DIR, "11-notification-rules-mvp.yaml");
-const TEMPLATES_PATH = path.join(DOCS_DIR, "12-notification-templates-mvp.yaml");
+const TEMPLATES_PATH = path.join(DOCS_DIR, "12-notification-template-cards-mvp.yaml");
 
 let cachedRules: NotificationRulesConfig | null = null;
 let cachedTemplates: NotificationTemplatesConfig | null = null;
@@ -198,7 +199,7 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
   }
 
   const template = templatesConfig.templates?.[rule.template ?? ""];
-  if (!template?.content) {
+  if (!template) {
     const result = {
       ...buildSkipped(context.object_type, context.event_type, `template '${rule.template ?? ""}' not found`),
       rule_code: rule.rule_code,
@@ -223,8 +224,53 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
     return Promise.resolve(result);
   }
 
-  const content = renderTemplate(template.content, buildTemplateData(context));
-  return new WecomClient().sendMarkdownToUsers(receivers, content).then((response) => {
+  const templateData = buildTemplateData(context);
+  const msgtype = typeof template.msgtype === "string" && template.msgtype.trim()
+    ? template.msgtype.trim()
+    : "markdown";
+
+  let sendPromise: Promise<JsonObject>;
+  if (msgtype === "template_card") {
+    if (!template.template_card) {
+      const result = {
+        ...buildSkipped(context.object_type, context.event_type, `template '${rule.template ?? ""}' missing template_card payload`),
+        rule_code: rule.rule_code,
+        template: rule.template,
+      };
+      writeAudit(context, result);
+      return Promise.resolve(result);
+    }
+    const renderedCard = renderTemplateValue(template.template_card, templateData);
+    if (!isJsonObject(renderedCard)) {
+      const result = {
+        ...buildSkipped(context.object_type, context.event_type, `template '${rule.template ?? ""}' rendered invalid template_card payload`),
+        rule_code: rule.rule_code,
+        template: rule.template,
+      };
+      writeAudit(context, result);
+      return Promise.resolve(result);
+    }
+    sendPromise = new WecomClient().sendAppMessage({
+      touser: receivers.join("|"),
+      msgtype: "template_card",
+      template_card: renderedCard,
+      safe: 0,
+    });
+  } else {
+    if (!template.content) {
+      const result = {
+        ...buildSkipped(context.object_type, context.event_type, `template '${rule.template ?? ""}' missing content`),
+        rule_code: rule.rule_code,
+        template: rule.template,
+      };
+      writeAudit(context, result);
+      return Promise.resolve(result);
+    }
+    const content = renderTemplate(template.content, templateData);
+    sendPromise = new WecomClient().sendMarkdownToUsers(receivers, content);
+  }
+
+  return sendPromise.then((response) => {
     const result: NotifyResult = {
       ok: true,
       enabled: true,
@@ -515,6 +561,23 @@ function renderTemplate(template: string, data: JsonObject): string {
   });
 }
 
+function renderTemplateValue(value: JsonValue, data: JsonObject): JsonValue {
+  if (typeof value === "string") {
+    return renderTemplate(value, data);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => renderTemplateValue(item, data));
+  }
+  if (isJsonObject(value)) {
+    const rendered: JsonObject = {};
+    for (const [key, nested] of Object.entries(value)) {
+      rendered[key] = nested === undefined ? undefined : renderTemplateValue(nested, data);
+    }
+    return rendered;
+  }
+  return value;
+}
+
 function readTokenValue(data: JsonObject, pathParts: string[]): JsonValue | undefined {
   let current: JsonValue | undefined = data;
   for (const part of pathParts) {
@@ -643,6 +706,10 @@ function stringifyOptional(value: JsonValue | undefined): string | undefined {
 
 function displayText(value: JsonValue | undefined): string {
   return stringifyOptional(value) ?? "-";
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isHighBug(bug: JsonObject): boolean {

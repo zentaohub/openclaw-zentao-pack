@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -39,6 +39,12 @@ interface ImportTaskCommand {
   sourceUrl?: string;
   execution?: string;
   assignedTo?: string;
+}
+
+interface NpmRunner {
+  command: string;
+  baseArgs: string[];
+  displayName: string;
 }
 
 function normalizeReplyFormat(value: string | undefined): "text" | "template_card" {
@@ -105,12 +111,42 @@ function toCliArgs(args: Record<string, string>): string[] {
   return cliArgs;
 }
 
+function resolveNpmRunner(): NpmRunner {
+  const cliCandidates = [
+    process.env.OPENCLAW_NPM_CLI_PATH,
+    process.env.npm_execpath,
+    path.resolve(path.dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
+    path.resolve(path.dirname(process.execPath), "../node_modules/npm/bin/npm-cli.js"),
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  for (const candidate of cliCandidates) {
+    if (existsSync(candidate)) {
+      return {
+        command: process.execPath,
+        baseArgs: [candidate],
+        displayName: candidate,
+      };
+    }
+  }
+
+  return {
+    command: process.platform === "win32" ? "npm.cmd" : "npm",
+    baseArgs: [],
+    displayName: process.platform === "win32" ? "npm.cmd" : "npm",
+  };
+}
+
+function execNpmScript(scriptName: string, scriptArgs: string[]): string {
+  const runner = resolveNpmRunner();
+  return execFileSync(runner.command, [...runner.baseArgs, "run", "--silent", scriptName, "--", ...scriptArgs], {
+    cwd: PACKAGE_ROOT,
+    encoding: "utf8",
+  }).trim();
+}
+
 function runScript(route: IntentRoute, args: Record<string, string>): JsonObject {
   try {
-    const output = execFileSync("npm", ["run", "--silent", route.script, "--", ...toCliArgs(args)], {
-      cwd: PACKAGE_ROOT,
-      encoding: "utf8",
-    }).trim();
+    const output = execNpmScript(route.script, toCliArgs(args));
     return parseJsonInput(output, `npm run ${route.script}`) as JsonObject;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -198,10 +234,7 @@ async function dispatchImportTask(text: string, userid: string, payload: WecomMe
     if (command.assignedTo) {
       cliArgs.push("--assigned-to", command.assignedTo);
     }
-    const output = execFileSync("npm", ["run", "--silent", "import-tasks-from-excel", "--", ...cliArgs], {
-      cwd: PACKAGE_ROOT,
-      encoding: "utf8",
-    }).trim();
+    const output = execNpmScript("import-tasks-from-excel", cliArgs);
     const result = parseJsonInput(output, "npm run import-tasks-from-excel") as JsonObject;
     return {
       ...result,

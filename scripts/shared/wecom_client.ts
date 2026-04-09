@@ -53,11 +53,15 @@ interface WecomApiResponse extends JsonObject {
   errmsg?: string;
 }
 
+export type WecomMessageType = "text" | "markdown" | "template_card";
+
+export type WecomTemplateCardPayload = JsonObject;
+
 interface WecomSendMessageRequest extends JsonObject {
   touser?: string;
   toparty?: string;
   totag?: string;
-  msgtype: "text" | "markdown";
+  msgtype: WecomMessageType;
   agentid: number;
   text?: {
     content: string;
@@ -65,6 +69,7 @@ interface WecomSendMessageRequest extends JsonObject {
   markdown?: {
     content: string;
   };
+  template_card?: WecomTemplateCardPayload;
   safe?: 0 | 1;
 }
 
