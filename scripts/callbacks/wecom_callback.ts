@@ -81,7 +81,6 @@ function maybeWrapReplyAsTemplateCard(
     return result;
   }
 
-  const intent = typeof result.intent === "string" ? result.intent : "zentao-callback";
   const templateCard = {
     card_type: "text_notice",
     source: {
@@ -92,7 +91,6 @@ function maybeWrapReplyAsTemplateCard(
       title: "禅道处理结果",
       desc: `用户: ${userid}`,
     },
-    task_id: `${intent}-${Date.now()}`,
     sub_title_text: truncateText(currentReplyText, 1200),
     card_action: {
       type: 1,

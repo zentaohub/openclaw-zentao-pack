@@ -345,7 +345,7 @@ export function buildTextNoticeCard(input: {
     horizontal_content_list: input.horizontalContentList,
     quote_area: buildQuoteArea(input.quoteText),
     card_action: { type: 1, url: input.actionUrl ?? "https://work.weixin.qq.com/" },
-    task_id: sanitizeTaskId(input.taskId, `agent-card-${Date.now()}`),
+    task_id: input.taskId ? sanitizeTaskId(input.taskId, input.taskId) : undefined,
   };
 }
 
