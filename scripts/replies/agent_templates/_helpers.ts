@@ -49,6 +49,13 @@ function humanizeTemplateName(templateName: string): string {
     .join(" ");
 }
 
+function buildUniqueTaskId(base: string, userid?: string): string {
+  const normalizedBase = base.replace(/[^A-Za-z0-9._:-]+/g, "-");
+  const normalizedUser = (userid || "unknown").replace(/[^A-Za-z0-9._:-]+/g, "-");
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${normalizedBase}-${normalizedUser}-${uniqueSuffix}`;
+}
+
 export function validateAgentReplyPayload(replyText: string): string {
   let parsed: unknown;
   try {
@@ -83,7 +90,7 @@ export function wrapTextAsAgentTemplateCard(
     title,
     desc: `User: ${userid}`,
     body: content.trim(),
-    taskId: `${templateName}-${userid}`,
+    taskId: buildUniqueTaskId(templateName, userid),
     horizontalContentList: [
       { keyname: "Intent", value: truncateText(context.intent, 64) },
       { keyname: "Script", value: truncateText(context.script, 64) },
@@ -264,7 +271,7 @@ function renderTemplateCardPayload(input: {
   form?: AgentTemplateMultipleFormDescriptor;
   vote?: AgentTemplateVoteDescriptor;
 }): string {
-  const taskId = `${input.name}-${input.context.userid}`;
+  const taskId = buildUniqueTaskId(input.name, input.context.userid);
 
   if (input.cardType === "text_notice") {
     return JSON.stringify({

@@ -6,6 +6,13 @@ import {
 import type { ReplyRenderContext, ReplyTemplate } from "../template_types";
 import { buildButtonInteractionCard } from "./card_support";
 
+function buildUniqueTaskId(base: string, userid?: string): string {
+  const normalizedBase = base.replace(/[^A-Za-z0-9._:-]+/g, "-");
+  const normalizedUser = (userid || "unknown").replace(/[^A-Za-z0-9._:-]+/g, "-");
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${normalizedBase}-${normalizedUser}-${uniqueSuffix}`;
+}
+
 function getNestedValue(record: JsonObject | undefined, path: string): string | undefined {
   if (!record) return undefined;
 
@@ -72,7 +79,7 @@ export const queryMyTasksAgentTemplate: ReplyTemplate = {
         taskLines.length > 0
           ? taskLines.join("\n")
           : "No tasks or todos were found for the current user.",
-      taskId: `query-my-tasks-${context.userid}`,
+      taskId: buildUniqueTaskId("query-my-tasks", context.userid),
       horizontalContentList: [
         { keyname: "User", value: displayUser },
         { keyname: "Role", value: displayRole },
