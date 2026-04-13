@@ -91,18 +91,18 @@ export const queryMyTasksAgentTemplate: ReplyTemplate = {
       buttonList: [
         ...(firstTaskId
           ? [{
-              label: "First task",
+              label: "查看首条任务",
               key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskOpenDetail, { task: firstTaskId }),
               style: 1 as const,
             }]
           : []),
         {
-          label: "My bugs",
+          label: "查看我的Bug",
           key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskQueryMyBugs),
           style: 2,
         },
         {
-          label: "Refresh",
+          label: "刷新任务",
           key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskRefreshMine),
           style: 2,
         },

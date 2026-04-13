@@ -153,22 +153,22 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
       if (!bugId) {
         return [];
       }
-      return [
-        {
-          label: "Activate",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugActivate, { bug: bugId, status: "activate" }),
-          style: 1,
-        },
-        {
-          label: "Resolve",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugResolve, { bug: bugId, status: "resolve" }),
-          style: 2,
-        },
-        {
-          label: "Close",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugClose, { bug: bugId, status: "close" }),
-          style: 4,
-        },
+        return [
+          {
+            label: "激活Bug",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugActivate, { bug: bugId, status: "activate" }),
+            style: 1,
+          },
+          {
+            label: "解决Bug",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugResolve, { bug: bugId, status: "resolve" }),
+            style: 2,
+          },
+          {
+            label: "关闭Bug",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugClose, { bug: bugId, status: "close" }),
+            style: 4,
+          },
       ];
     },
     title: (c) => `Bug 详情 #${getText(getPathValue(c.result, "bug"))}`,
@@ -265,19 +265,19 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
     countPath: "count",
     actions: (c) => {
       const firstBugId = getText(getPathValue(c.result, "items.0.id"), "");
-      return [
-        ...(firstBugId
-          ? [{
-              label: "First bug",
-              key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugOpenDetail, { bug: firstBugId }),
-              style: 1 as const,
-            }]
-          : []),
-        {
-          label: "Refresh",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskQueryMyBugs),
-          style: 2,
-        },
+        return [
+          ...(firstBugId
+            ? [{
+                label: "查看首条Bug",
+                key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugOpenDetail, { bug: firstBugId }),
+                style: 1 as const,
+              }]
+            : []),
+          {
+            label: "刷新Bug",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskQueryMyBugs),
+            style: 2,
+          },
       ];
     },
     metrics: (c) => [
@@ -407,22 +407,22 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
       if (!taskId) {
         return [];
       }
-      return [
-        {
-          label: "Start",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskStart, { task: taskId, status: "doing" }),
-          style: 1,
-        },
-        {
-          label: "Finish",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskFinish, { task: taskId, status: "done" }),
-          style: 2,
-        },
-        {
-          label: "Block",
-          key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskBlock, { task: taskId, status: "pause" }),
-          style: 4,
-        },
+        return [
+          {
+            label: "开始任务",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskStart, { task: taskId, status: "doing" }),
+            style: 1,
+          },
+          {
+            label: "完成任务",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskFinish, { task: taskId, status: "done" }),
+            style: 2,
+          },
+          {
+            label: "阻塞任务",
+            key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskBlock, { task: taskId, status: "pause" }),
+            style: 4,
+          },
       ];
     },
     title: (c) => `任务详情 #${getText(getPathValue(c.result, "task"))}`,
@@ -503,15 +503,15 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
         questionKey: "review_result",
         mode: 1,
         options: [
-          { id: "pass", text: "Pass" },
-          { id: "reject", text: "Reject" },
-          { id: "clarify", text: "Needs work" },
+          { id: "pass", text: "通过" },
+          { id: "reject", text: "驳回" },
+          { id: "clarify", text: "需补充" },
         ],
         submit: {
-          text: "Submit",
+          text: "提交评审",
           key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.storyReviewSubmit, { story: storyId }),
         },
-        replaceText: "Review choice submitted.",
+        replaceText: "评审结果已提交",
       };
     },
     title: () => "需求评审",
@@ -540,29 +540,29 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
         fields: [
           {
             questionKey: "status",
-            title: "Select bug status",
+            title: "选择Bug状态",
             selectedId: currentStatus || undefined,
             options: [
-              { id: "activate", text: "Activate" },
-              { id: "resolve", text: "Resolve" },
-              { id: "close", text: "Close" },
+              { id: "activate", text: "激活" },
+              { id: "resolve", text: "已解决" },
+              { id: "close", text: "已关闭" },
             ],
           },
           {
             questionKey: "comment_mode",
-            title: "Comment strategy",
+            title: "备注策略",
             selectedId: "default",
             options: [
-              { id: "default", text: "Use default note" },
-              { id: "silent", text: "No note" },
+              { id: "default", text: "使用默认备注" },
+              { id: "silent", text: "不写备注" },
             ],
           },
         ],
         submit: {
-          text: "Apply",
+          text: "提交更新",
           key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.bugStatusSubmit, { bug: bugId }),
         },
-        replaceText: "Bug status change submitted.",
+        replaceText: "Bug状态更新已提交",
       };
     },
     title: () => "Bug 状态更新",
@@ -600,30 +600,30 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
         fields: [
           {
             questionKey: "status",
-            title: "Select task status",
+            title: "选择任务状态",
             selectedId: currentStatus || undefined,
             options: [
-              { id: "wait", text: "Wait" },
-              { id: "doing", text: "Doing" },
-              { id: "done", text: "Done" },
-              { id: "pause", text: "Blocked" },
+              { id: "wait", text: "待处理" },
+              { id: "doing", text: "进行中" },
+              { id: "done", text: "已完成" },
+              { id: "pause", text: "已阻塞" },
             ],
           },
           {
             questionKey: "comment_mode",
-            title: "Comment strategy",
+            title: "备注策略",
             selectedId: "default",
             options: [
-              { id: "default", text: "Use default note" },
-              { id: "silent", text: "No note" },
+              { id: "default", text: "使用默认备注" },
+              { id: "silent", text: "不写备注" },
             ],
           },
         ],
         submit: {
-          text: "Apply",
+          text: "提交更新",
           key: buildInteractiveActionKey(WECOM_INTERACTIVE_ACTIONS.taskStatusSubmit, { task: taskId }),
         },
-        replaceText: "Task status change submitted.",
+        replaceText: "任务状态更新已提交",
       };
     },
     title: () => "任务状态更新",
