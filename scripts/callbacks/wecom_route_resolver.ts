@@ -216,6 +216,38 @@ function extractLastMatch(text: string, expressions: RegExp[]): string | undefin
   return matchedValue;
 }
 
+function extractAssignedTo(text: string): string | undefined {
+  const directMatch = extractLastMatch(text, [
+    /(?:assigned-to|assignedto)\s*[#:= -]?\s*([^\s,.;:]+)/giu,
+  ]);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const ownerToken = "\u8d1f\u8d23\u4eba";
+  const giveToken = "\u7ed9";
+
+  const ownerIndex = text.lastIndexOf(ownerToken);
+  if (ownerIndex >= 0) {
+    const tail = text.slice(ownerIndex + ownerToken.length).trimStart().replace(/^[#:= -]+/u, "");
+    const match = tail.match(/^\S+/u);
+    if (match?.[0]) {
+      return match[0];
+    }
+  }
+
+  const giveIndex = text.lastIndexOf(giveToken);
+  if (giveIndex >= 0) {
+    const tail = text.slice(giveIndex + giveToken.length).trimStart();
+    const match = tail.match(/^\S+/u);
+    if (match?.[0]) {
+      return match[0];
+    }
+  }
+
+  return undefined;
+}
+
 export function extractRouteArgs(text: string, route: IntentRoute, userid: string): Record<string, string> {
   const args: Record<string, string> = {};
   if (route.defaultArgs.userid === "current_user") {
@@ -245,6 +277,13 @@ export function extractRouteArgs(text: string, route: IntentRoute, userid: strin
       if (!args.execution && !args.testtask && !args.project && !args.product) {
         args.execution = onlyNumber;
       }
+    }
+  }
+
+  if (route.intent === "assign-bug" && !args["assigned-to"]) {
+    const assignedTo = extractAssignedTo(text);
+    if (assignedTo) {
+      args["assigned-to"] = assignedTo;
     }
   }
 
