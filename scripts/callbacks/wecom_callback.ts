@@ -106,7 +106,35 @@ function maybeWrapReplyAsTemplateCard(
 }
 
 function toCliArgs(args: Record<string, string>): string[] {
-  const entries = Object.entries(args).filter(([, value]) => typeof value === "string" && value.trim());
+  const normalized: Record<string, string> = {};
+  const fallbackUserid = typeof args.userid === "string" && args.userid.trim() && args.userid.trim() !== "current_user"
+    ? args.userid.trim()
+    : "";
+
+  for (const [rawKey, rawValue] of Object.entries(args)) {
+    const key = rawKey.trim();
+    const value = typeof rawValue === "string" ? rawValue.trim() : "";
+    if (!key || !value || key === "current_user") {
+      continue;
+    }
+
+    const normalizedKey = key === "user_id" ? "userid" : key;
+    const normalizedValue = value === "current_user"
+      ? (normalizedKey === "userid" ? fallbackUserid : "")
+      : value;
+
+    if (!normalizedValue) {
+      continue;
+    }
+
+    if (normalizedKey === "userid" && normalized.userid) {
+      continue;
+    }
+
+    normalized[normalizedKey] = normalizedValue;
+  }
+
+  const entries = Object.entries(normalized);
   const cliArgs: string[] = [];
   for (const [key, value] of entries) {
     cliArgs.push(`--${key}`, value);
