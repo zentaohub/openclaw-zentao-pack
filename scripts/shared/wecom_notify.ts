@@ -113,6 +113,8 @@ interface ResolvedReceivers {
   filteredOperator: boolean;
 }
 
+type ReceiverUseridResolver = (candidate: string) => Promise<string | undefined>;
+
 const DOCS_DIR = resolveDocsDir();
 const RULES_PATH = path.join(DOCS_DIR, "11-notification-rules-mvp.yaml");
 const TEMPLATES_PATH = path.join(DOCS_DIR, "12-notification-template-cards-mvp.yaml");
@@ -188,7 +190,7 @@ export async function notifyStoryStatusChanged(input: BaseNotifyInput & { storyI
   return dispatchNotification(context);
 }
 
-function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
+async function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
   const rulesConfig = loadRulesConfig();
   const templatesConfig = loadTemplatesConfig();
   const rule = (rulesConfig.rules ?? []).find((item) => item.object_type === context.object_type && item.event_type === context.event_type && matchesWhen(item.when, context, rulesConfig));
@@ -209,7 +211,12 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
   }
 
   const excludeOperator = rulesConfig.defaults?.exclude_operator !== false;
-  const resolvedReceivers = resolveReceivers(rule, context, excludeOperator);
+  const resolvedReceivers = await resolveReceivers(
+    rule,
+    context,
+    excludeOperator,
+    createReceiverUseridResolver(context.operatorUserid),
+  );
   const receivers = resolvedReceivers.receivers;
   if (receivers.length === 0) {
     const reason = resolvedReceivers.filteredOperator
@@ -221,7 +228,7 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
       template: rule.template,
     };
     writeAudit(context, result);
-    return Promise.resolve(result);
+    return result;
   }
 
   const templateData = buildTemplateData(context);
@@ -238,7 +245,7 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
         template: rule.template,
       };
       writeAudit(context, result);
-      return Promise.resolve(result);
+      return result;
     }
     const renderedCard = renderTemplateValue(template.template_card, templateData);
     if (!isJsonObject(renderedCard)) {
@@ -248,7 +255,7 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
         template: rule.template,
       };
       writeAudit(context, result);
-      return Promise.resolve(result);
+      return result;
     }
     sendPromise = new WecomClient().sendAppMessage({
       touser: receivers.join("|"),
@@ -264,7 +271,7 @@ function dispatchNotification(context: NotifyContext): Promise<NotifyResult> {
         template: rule.template,
       };
       writeAudit(context, result);
-      return Promise.resolve(result);
+      return result;
     }
     const content = renderTemplate(template.content, templateData);
     sendPromise = new WecomClient().sendMarkdownToUsers(receivers, content);
@@ -499,13 +506,19 @@ function matchesWhen(when: RuleWhen | undefined, context: NotifyContext, config:
   return false;
 }
 
-function resolveReceivers(rule: NotificationRule, context: NotifyContext, excludeOperator: boolean): ResolvedReceivers {
+async function resolveReceivers(
+  rule: NotificationRule,
+  context: NotifyContext,
+  excludeOperator: boolean,
+  resolveUserid: ReceiverUseridResolver,
+): Promise<ResolvedReceivers> {
   const users = resolveRoleUsers(rule.primary_receivers ?? [], context);
-  const operator = excludeOperator ? normalizeUserid(context.operatorUserid) : undefined;
-  const receivers = Array.from(new Set(users.filter((item) => item && item !== operator)));
+  const resolvedUsers = await Promise.all(users.map((item) => resolveUserid(item)));
+  const operator = excludeOperator ? await resolveUserid(context.operatorUserid ?? "") : undefined;
+  const receivers = Array.from(new Set(resolvedUsers.filter((item): item is string => Boolean(item) && item !== operator)));
   return {
     receivers,
-    filteredOperator: Boolean(operator) && users.some((item) => item === operator),
+    filteredOperator: Boolean(operator) && resolvedUsers.some((item) => item === operator),
   };
 }
 
@@ -691,6 +704,68 @@ function normalizeUserid(value: string | undefined): string | undefined {
     return undefined;
   }
   return normalized;
+}
+
+function createReceiverUseridResolver(operatorUserid?: string): ReceiverUseridResolver {
+  const client = new ZentaoClient({ userid: operatorUserid });
+  const cache = new Map<string, Promise<string | undefined>>();
+  const receiverFieldCandidates = [
+    "userid",
+    "userId",
+    "wecomUserId",
+    "wecom_userid",
+    "weixin",
+    "wechat",
+    "account",
+  ];
+
+  async function lookup(candidate: string): Promise<string | undefined> {
+    const normalized = normalizeUserid(candidate);
+    if (!normalized) {
+      return undefined;
+    }
+
+    let matchedUser: JsonObject | null = null;
+    try {
+      matchedUser = await client.findUserByUserid(normalized);
+    } catch {
+      try {
+        matchedUser = await client.findUserByAccount(normalized);
+      } catch {
+        matchedUser = null;
+      }
+    }
+
+    if (!matchedUser) {
+      return normalized;
+    }
+
+    for (const field of receiverFieldCandidates) {
+      const value = matchedUser[field];
+      if (typeof value === "string") {
+        const resolved = normalizeUserid(value);
+        if (resolved) {
+          return resolved;
+        }
+      }
+    }
+
+    return normalized;
+  }
+
+  return (candidate: string) => {
+    const normalized = normalizeUserid(candidate);
+    if (!normalized) {
+      return Promise.resolve(undefined);
+    }
+    const cached = cache.get(normalized);
+    if (cached) {
+      return cached;
+    }
+    const pending = lookup(normalized);
+    cache.set(normalized, pending);
+    return pending;
+  };
 }
 
 function normalizeStringArray(values: string[]): string[] {
