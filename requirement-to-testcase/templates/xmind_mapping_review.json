@@ -1,0 +1,18 @@
+{
+  "root": "requirement_name",
+  "group_by": "模块",
+  "case_title_fields": [
+    "用例ID",
+    "用例标题"
+  ],
+  "detail_fields": [
+    "优先级",
+    "关联需求点",
+    "预期结果"
+  ],
+  "detail_labels": {
+    "优先级": "优先级",
+    "关联需求点": "关联需求点",
+    "预期结果": "预期结果摘要"
+  }
+}

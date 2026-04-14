@@ -14,6 +14,7 @@
 - 推进任务、需求、Bug、发布、测试单等常见状态流转
 - 处理发布关联、执行关联、测试单关联等操作
 - 复用共享禅道 / 企微客户端能力
+- 企业微信自建应用接收 `.docx` 需求文档并生成测试用例 Excel/XMind
 
 ## 企微主动通知规划
 
@@ -153,6 +154,17 @@ npm run query-notification-audit -- --latest 5
 - 企微附件：上传 Excel 文件，并在消息中补 `执行 12` 之类的上下文
 - 示例模板见 `examples/task-import-template.csv`，建议至少包含 `任务名称` 列。
 - 默认会按“同一执行下任务名称完全相同”做重复导入保护，命中后跳过；如需强制重复导入，可传 `--allow-duplicates`。
+- 企微自建应用现支持 `.docx` 需求文档转测试用例：上传 `.docx` 后发送“生成测试用例并导出excel”或“生成测试用例并导出xmind”。
+- 该能力核心代码统一放在 `scripts/requirement_to_testcase/`，规则 prompt 放在 `requirement-to-testcase/prompt.md`。
+- 暂时只支持 `.docx` 和直接文本，不支持企微在线文档。
+
+## 需求转测试用例
+
+- 命令行入口：`npm run requirement-to-testcase -- --input-file examples/xxx.docx --format both`
+- 纯文本入口：`npm run requirement-to-testcase -- --input-text "这是需求说明" --format excel`
+- 企业微信自建应用入口：上传 `.docx` 后发送“生成测试用例”
+- 导出目录默认写入：`requirement-to-testcase/output`
+- 生成规则严格遵循：`requirement-to-testcase/prompt.md`
 
 ## 当前配置优先级
 

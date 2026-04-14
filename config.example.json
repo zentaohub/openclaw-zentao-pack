@@ -25,6 +25,11 @@
     "auto_sync_user": true,
     "root_department_id": 1
   },
+  "requirement_to_testcase": {
+    "output_dir": "./requirement-to-testcase/output",
+    "default_format": "excel",
+    "enable_xmind": true
+  },
   "web_routes": {
     "my_task_assigned": "/my-work-task-assignedTo.html",
     "my_bug_assigned": "/my-work-bug-assignedTo.html"

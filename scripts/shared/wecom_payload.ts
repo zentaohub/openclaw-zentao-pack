@@ -212,6 +212,14 @@ export function extractAttachmentInfo(payload: WecomMessagePayload): WecomAttach
   };
 }
 
+export function isDocxAttachmentPayload(payload: WecomMessagePayload): boolean {
+  const attachment = extractAttachmentInfo(payload);
+  if (!attachment?.filename) {
+    return false;
+  }
+  return attachment.filename.trim().toLowerCase().endsWith(".docx");
+}
+
 export function detectWecomMessageSource(payload: WecomMessagePayload): WecomMessageSource {
   const body = toObject(payload.body);
   const sender = toObject(payload.sender);

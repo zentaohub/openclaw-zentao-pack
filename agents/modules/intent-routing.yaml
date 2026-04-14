@@ -215,6 +215,11 @@ routes:
     reply_template: create-testcase
     required_args: [product, title, steps, expects]
 
+  - intent: requirement-to-testcase
+    triggers: ["生成测试用例", "根据需求写测试用例", "需求转测试用例", "导出测试用例", "根据文档生成测试用例"]
+    script: requirement-to-testcase
+    reply_template: requirement-to-testcase
+
   - intent: create-testtask
     triggers: ["创建测试单", "新建测试单", "提测", "新增测试单"]
     script: create-testtask

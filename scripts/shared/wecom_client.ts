@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { request as httpsRequest } from "node:https";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path, { join } from "node:path";
 import { URL } from "node:url";
 import { type JsonObject, type JsonValue, loadConfig } from "./zentao_client";
 
@@ -53,7 +53,7 @@ interface WecomApiResponse extends JsonObject {
   errmsg?: string;
 }
 
-export type WecomMessageType = "text" | "markdown" | "template_card";
+export type WecomMessageType = "text" | "markdown" | "template_card" | "file";
 
 export type WecomTemplateCardPayload = JsonObject;
 
@@ -69,8 +69,17 @@ interface WecomSendMessageRequest extends JsonObject {
   markdown?: {
     content: string;
   };
+  file?: {
+    media_id: string;
+  };
   template_card?: WecomTemplateCardPayload;
   safe?: 0 | 1;
+}
+
+interface WecomUploadMediaResponse extends WecomApiResponse {
+  type?: string;
+  media_id?: string;
+  created_at?: string;
 }
 
 interface WecomDepartmentListResponse extends WecomApiResponse {
@@ -86,6 +95,12 @@ export interface WecomMediaFile {
   filename: string;
   contentType: string | null;
   mediaId: string;
+}
+
+export interface WecomUploadedMedia extends JsonObject {
+  type: string;
+  media_id: string;
+  created_at?: string;
 }
 
 function readWecomConfig(): WecomConfig {
@@ -191,6 +206,48 @@ function createHttpsPostJson(requestUrl: string, payload: JsonObject): Promise<W
   });
 }
 
+function createHttpsPostBuffer(
+  requestUrl: string,
+  body: Buffer,
+  headers: Record<string, string | number>,
+): Promise<WecomApiResponse> {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      requestUrl,
+      {
+        method: "POST",
+        headers,
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          const responseText = Buffer.concat(chunks).toString("utf8");
+          if ((response.statusCode ?? 500) < 200 || (response.statusCode ?? 500) >= 300) {
+            reject(
+              new Error(
+                `WeCom request failed with status ${response.statusCode ?? 500}: ${responseText}`,
+              ),
+            );
+            return;
+          }
+          try {
+            resolve(parseJson<WecomApiResponse>(responseText, requestUrl));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+
+    request.on("error", reject);
+    request.write(body);
+    request.end();
+  });
+}
+
 function createHttpsGetBuffer(requestUrl: string): Promise<{
   body: Buffer;
   headers: Record<string, string | string[] | undefined>;
@@ -258,6 +315,25 @@ function inferFilenameFromHeaders(
     return `${fallbackMediaId}.xlsx`;
   }
   return `${fallbackMediaId}.bin`;
+}
+
+function inferMimeType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === ".xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (ext === ".docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (ext === ".txt") return "text/plain";
+  return "application/octet-stream";
+}
+
+function encodeMultipartFormData(boundary: string, filename: string, buffer: Buffer): Buffer {
+  const header = Buffer.from(
+    `--${boundary}\r\n`
+    + `Content-Disposition: form-data; name="media"; filename="${filename}"\r\n`
+    + `Content-Type: ${inferMimeType(filename)}\r\n\r\n`,
+    "utf8",
+  );
+  const footer = Buffer.from(`\r\n--${boundary}--\r\n`, "utf8");
+  return Buffer.concat([header, buffer, footer]);
 }
 function ensureOk<T extends WecomApiResponse>(response: T, action: string): T {
   if ((response.errcode ?? 0) !== 0) {
@@ -448,6 +524,69 @@ export class WecomClient {
       markdown: { content },
       safe: 0,
     });
+  }
+
+  async sendFileToUsers(userids: string[], mediaId: string): Promise<WecomApiResponse> {
+    const normalizedUsers = Array.from(
+      new Set(
+        userids
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+    if (normalizedUsers.length === 0) {
+      throw new Error("WeCom file message requires at least one userid");
+    }
+    if (!mediaId.trim()) {
+      throw new Error("WeCom file message requires a media_id");
+    }
+    return this.sendAppMessage({
+      touser: normalizedUsers.join("|"),
+      msgtype: "file",
+      file: { media_id: mediaId.trim() },
+      safe: 0,
+    });
+  }
+
+  async uploadTemporaryMedia(filePath: string): Promise<WecomUploadedMedia> {
+    const normalizedPath = path.resolve(filePath);
+    if (!existsSync(normalizedPath)) {
+      throw new Error(`WeCom upload file not found: ${normalizedPath}`);
+    }
+
+    const stats = statSync(normalizedPath);
+    if (!stats.isFile()) {
+      throw new Error(`WeCom upload path is not a file: ${normalizedPath}`);
+    }
+
+    const buffer = readFileSync(normalizedPath);
+    const filename = path.basename(normalizedPath);
+    const accessToken = await this.getAccessToken();
+    const url = new URL(`${this.apiBaseUrl}/cgi-bin/media/upload`);
+    url.searchParams.set("access_token", accessToken);
+    url.searchParams.set("type", "file");
+
+    const boundary = `----OpenClaw${Date.now()}${Math.random().toString(16).slice(2)}`;
+    const body = encodeMultipartFormData(boundary, filename, buffer);
+    const response = ensureOk(
+      await createHttpsPostBuffer(url.toString(), body, {
+        Accept: "application/json",
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "Content-Length": body.byteLength,
+      }),
+      "media.upload",
+    ) as WecomUploadMediaResponse;
+
+    const mediaId = typeof response.media_id === "string" ? response.media_id.trim() : "";
+    if (!mediaId) {
+      throw new Error("WeCom media.upload succeeded but media_id is empty");
+    }
+
+    return {
+      type: typeof response.type === "string" && response.type.trim() ? response.type.trim() : "file",
+      media_id: mediaId,
+      created_at: typeof response.created_at === "string" ? response.created_at : undefined,
+    };
   }
 
   async downloadMedia(mediaId: string, preferredFilename?: string): Promise<WecomMediaFile> {

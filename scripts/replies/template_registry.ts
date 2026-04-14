@@ -38,6 +38,7 @@ import { queryTestcasesTemplate } from "./templates/query-testcases";
 import { queryTesttaskCasesTemplate } from "./templates/query-testtask-cases";
 import { queryTesttaskDetailTemplate } from "./templates/query-testtask-detail";
 import { queryTesttasksTemplate } from "./templates/query-testtasks";
+import { requirementToTestcaseTemplate } from "./templates/requirement-to-testcase";
 import { reviewStoryTemplate } from "./templates/review-story";
 import { runTesttaskCaseTemplate } from "./templates/run-testtask-case";
 import { updateBugStatusTemplate } from "./templates/update-bug-status";
@@ -83,6 +84,7 @@ const TEMPLATE_REGISTRY: Record<string, ReplyTemplate> = {
   "query-testtask-cases": queryTesttaskCasesTemplate,
   "query-testtask-detail": queryTesttaskDetailTemplate,
   "query-testtasks": queryTesttasksTemplate,
+  "requirement-to-testcase": requirementToTestcaseTemplate,
   "review-story": reviewStoryTemplate,
   "run-testtask-case": runTesttaskCaseTemplate,
   "update-bug-status": updateBugStatusTemplate,

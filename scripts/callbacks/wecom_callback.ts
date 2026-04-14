@@ -10,6 +10,7 @@ import {
   extractAttachmentInfo,
   extractText,
   extractUserid,
+  isDocxAttachmentPayload,
   parseJsonInput,
   type WecomMessagePayload,
 } from "../shared/wecom_payload";
@@ -36,10 +37,23 @@ const IMPORT_TASK_TRIGGERS = [
   "导任务",
 ];
 
+const REQUIREMENT_TO_TESTCASE_TRIGGERS = [
+  "生成测试用例",
+  "根据需求写测试用例",
+  "需求转测试用例",
+  "导出测试用例",
+  "根据文档生成测试用例",
+  "测试案例",
+];
+
 interface ImportTaskCommand {
   sourceUrl?: string;
   execution?: string;
   assignedTo?: string;
+}
+
+interface RequirementToTestcaseCommand {
+  format: "excel" | "xmind" | "both";
 }
 
 interface NpmRunner {
@@ -218,6 +232,23 @@ function sanitizeFilename(filename: string): string {
   return filename.replace(/[^A-Za-z0-9._-]+/g, "_");
 }
 
+function isRequirementToTestcaseRequest(text: string, payload: WecomMessagePayload): boolean {
+  if (REQUIREMENT_TO_TESTCASE_TRIGGERS.some((trigger) => text.includes(trigger))) {
+    return true;
+  }
+
+  return isDocxAttachmentPayload(payload);
+}
+
+function extractRequirementToTestcaseCommand(text: string): RequirementToTestcaseCommand {
+  const normalized = text.toLowerCase();
+  const wantsXmind = normalized.includes("xmind") || text.includes("脑图");
+  const wantsExcel = normalized.includes("excel") || normalized.includes("xlsx") || text.includes("表格");
+  return {
+    format: wantsXmind && wantsExcel ? "both" : wantsXmind ? "xmind" : "excel",
+  };
+}
+
 function isImportTaskRequest(text: string, payload: WecomMessagePayload): boolean {
   if (IMPORT_TASK_TRIGGERS.some((trigger) => text.includes(trigger))) {
     return true;
@@ -320,6 +351,105 @@ async function dispatchImportTask(text: string, userid: string, payload: WecomMe
         unlinkSync(tempFilePath);
       } catch {
         // ignore cleanup failure for temp import file
+      }
+    }
+  }
+}
+
+async function dispatchRequirementToTestcase(text: string, userid: string, payload: WecomMessagePayload): Promise<JsonObject> {
+  const command = extractRequirementToTestcaseCommand(text);
+  const attachment = extractAttachmentInfo(payload);
+
+  if (!attachment && !text.trim()) {
+    return {
+      ok: true,
+      userid,
+      intent: "requirement-to-testcase",
+      missing_args: [".docx 附件或需求文本"],
+      reply_text: [
+        "已识别为需求转测试用例请求。",
+        "请发送 .docx 需求文档，或直接粘贴需求文本后重试。",
+        "示例：上传 .docx 后发送“生成测试用例并导出excel”",
+      ].join("\n"),
+    };
+  }
+
+  let tempFilePath: string | null = null;
+  try {
+    const cliArgs = [
+      "--callback-mode",
+      "--source-type",
+      detectWecomMessageSource(payload),
+      "--format",
+      command.format,
+    ];
+
+    if (attachment) {
+      if (!attachment.filename || !attachment.filename.trim().toLowerCase().endsWith(".docx")) {
+        return {
+          ok: true,
+          userid,
+          intent: "requirement-to-testcase",
+          reply_text: "当前仅支持通过企业微信自建应用上传 .docx 需求文档。",
+        };
+      }
+
+      const wecomClient = new WecomClient();
+      const mediaFile = await wecomClient.downloadMedia(attachment.mediaId, attachment.filename);
+      const filename = sanitizeFilename(mediaFile.filename || `${attachment.mediaId}.docx`);
+      tempFilePath = path.join(tmpdir(), `openclaw-zentao-requirement-${Date.now()}-${filename}`);
+      writeFileSync(tempFilePath, mediaFile.buffer);
+      cliArgs.push("--input-file", tempFilePath);
+    } else {
+      cliArgs.push("--input-text", text.trim());
+    }
+
+    const output = execNpmScript("requirement-to-testcase", cliArgs);
+    const result = parseJsonInput(output, "npm run requirement-to-testcase") as JsonObject;
+    const outputFiles = Array.isArray(result.output_files)
+      ? result.output_files.map((item) => String(item)).filter(Boolean)
+      : [];
+
+    if (outputFiles.length > 0) {
+      const wecomClient = new WecomClient();
+      for (const filePath of outputFiles) {
+        const uploaded = await wecomClient.uploadTemporaryMedia(filePath);
+        await wecomClient.sendFileToUsers([userid], uploaded.media_id);
+      }
+    }
+
+    return {
+      ...result,
+      ok: result.ok === undefined ? true : result.ok,
+      userid,
+      intent: "requirement-to-testcase",
+      route_script: "requirement-to-testcase",
+      route_args: {
+        format: command.format,
+        mediaId: attachment?.mediaId,
+        filename: attachment?.filename,
+      },
+      reply_text:
+        typeof result.reply_text === "string" && result.reply_text.trim()
+          ? result.reply_text
+          : "需求转测试用例执行完成。",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      userid,
+      intent: "requirement-to-testcase",
+      route_script: "requirement-to-testcase",
+      error: message,
+      reply_text: `已识别为需求转测试用例请求，但执行失败：${message}`,
+    };
+  } finally {
+    if (tempFilePath) {
+      try {
+        unlinkSync(tempFilePath);
+      } catch {
+        // ignore cleanup failure for temp requirement file
       }
     }
   }
@@ -511,6 +641,16 @@ async function main(): Promise<void> {
   const interactiveResult = await dispatchInteractiveCallback(payload, userid);
   if (interactiveResult) {
     printJson(maybeWrapReplyAsTemplateCard(interactiveResult, replyFormat, userid));
+    return;
+  }
+
+  if (isRequirementToTestcaseRequest(text, payload)) {
+    const result = await dispatchRequirementToTestcase(text, userid, payload);
+    printJson(maybeWrapReplyAsTemplateCard({
+      ...result,
+      message_source: sourceType,
+      route_source: "wecom_requirement_special",
+    }, replyFormat, userid));
     return;
   }
 

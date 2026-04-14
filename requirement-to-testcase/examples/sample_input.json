@@ -1,0 +1,20 @@
+{
+  "requirement_name": "示例需求文档",
+  "date": "20260413",
+  "output_dir": "D:\\project\\openclaw\\openclaw-zentao-pack\\requirement-to-testcase\\output",
+  "sheet_name": "测试用例",
+  "test_cases": [
+    {
+      "用例ID": "TC-DEMO-01",
+      "模块": "首页预警",
+      "关联需求点": "首页固定展示预警",
+      "用例标题": "用户进入首页时展示预警卡片",
+      "前置条件": "用户已登录",
+      "测试步骤": "1. 打开首页 2. 查看预警区域",
+      "测试数据": "正常首页数据",
+      "预期结果": "首页显示预警卡片且文案正确",
+      "优先级": "P0",
+      "用例类型": "功能"
+    }
+  ]
+}

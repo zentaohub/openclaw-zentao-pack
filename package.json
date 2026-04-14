@@ -51,6 +51,7 @@
         "link-execution-stories": "npm run build && node dist/scripts/actions/link_execution_stories.js",
         "create-task": "npm run build && node dist/scripts/actions/create_task.js",
         "import-tasks-from-excel": "npm run build && node dist/scripts/actions/import_tasks_from_excel.js",
+        "requirement-to-testcase": "npm run build && node dist/scripts/requirement_to_testcase/run_requirement_to_testcase.js",
         "create-testcase": "npm run build && node dist/scripts/actions/create_testcase.js",
         "query-testtasks": "npm run build && node dist/scripts/queries/query_testtasks.js",
         "create-testtask": "npm run build && node dist/scripts/actions/create_testtask.js",
@@ -70,6 +71,9 @@
         "test-wecom-agent-card": "node scripts/tests/send_wecom_agent_card_test.mjs"
     },
     "dependencies": {
+        "exceljs": "^4.4.0",
+        "mammoth": "^1.8.0",
+        "xmind-generator": "^1.0.1",
         "xlsx": "^0.18.5",
         "yaml": "^2.8.3"
     },
