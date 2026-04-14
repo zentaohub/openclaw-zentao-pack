@@ -54,23 +54,7 @@ interface RouteRepairResult {
 }
 
 const EXACT_MISSING_ARG_FALLBACKS: Record<string, string> = {
-  "query-product-modules": "query-products",
-  "query-executions": "query-projects",
-  "query-execution-stories": "query-executions",
-  "query-execution-tasks": "query-executions",
-  "query-project-team": "query-projects",
-  "query-execution-team": "query-executions",
   "query-product-stories": "query-my-stories",
-  "query-testcases": "query-products",
-  "query-testtasks": "query-executions",
-  "query-testtask-detail": "query-testtasks",
-  "query-testtask-cases": "query-testtasks",
-  "query-test-exit-readiness": "query-testtasks",
-  "query-go-live-checklist": "query-testtasks",
-  "query-acceptance-overview": "query-testtasks",
-  "query-closure-readiness": "query-testtasks",
-  "query-closure-items": "query-testtasks",
-  "query-releases": "query-products",
 };
 
 function normalizeReplyFormat(value: string | undefined): "text" | "template_card" {
