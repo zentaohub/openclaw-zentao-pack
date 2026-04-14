@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -399,6 +399,16 @@ async function dispatchRequirementToTestcase(text: string, userid: string, paylo
       const filename = sanitizeFilename(mediaFile.filename || `${attachment.mediaId}.docx`);
       tempFilePath = path.join(tmpdir(), `openclaw-zentao-requirement-${Date.now()}-${filename}`);
       writeFileSync(tempFilePath, mediaFile.buffer);
+      
+      // 验证临时文件是否创建成功
+      if (!existsSync(tempFilePath)) {
+        throw new Error(`临时文件创建失败：${tempFilePath}`);
+      }
+      const tempStats = statSync(tempFilePath);
+      if (tempStats.size === 0) {
+        throw new Error(`临时文件为空：${tempFilePath}`);
+      }
+      
       cliArgs.push("--input-file", tempFilePath);
     } else {
       cliArgs.push("--input-text", text.trim());

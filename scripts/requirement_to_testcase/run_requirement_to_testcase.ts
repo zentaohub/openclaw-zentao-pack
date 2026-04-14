@@ -75,6 +75,24 @@ async function main(): Promise<void> {
 
   if (!payloadFile) {
     source = await readRequirementSource(options);
+    
+    // 验证 source 是否有效
+    if (!source) {
+      if (options.inputFile) {
+        throw new Error(`无法读取输入文件：${options.inputFile}`);
+      }
+      throw new Error("未能从输入中提取需求内容");
+    }
+    
+    // 如果有 inputFile 但 rawText 为空，抛出详细错误
+    if (options.inputFile && (!source.rawText || source.rawText.trim().length === 0)) {
+      throw new Error(
+        `输入文件 ${options.inputFile} 读取成功，但提取的正文内容为空。\n` +
+        `文件类型：${path.extname(options.inputFile)}\n` +
+        `告警信息：${source.warnings.join("; ") || "无"}`
+      );
+    }
+    
     const payload = source
       ? (await generatePayloadWithLlm(source, options.outputDir)) ?? buildPayloadFromSource(source, options.outputDir)
       : buildPayloadFromSource({

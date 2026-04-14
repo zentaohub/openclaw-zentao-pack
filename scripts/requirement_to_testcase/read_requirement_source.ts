@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { readDocx } from "./readers/read_docx";
 import { readTextFile } from "./readers/read_text_file";
@@ -30,6 +31,11 @@ export async function readRequirementSource(options: RunRequirementOptions): Pro
   }
 
   if (options.inputFile) {
+    // 验证文件是否存在
+    if (!existsSync(options.inputFile)) {
+      throw new Error(`输入文件不存在：${options.inputFile}`);
+    }
+    
     const ext = path.extname(options.inputFile).toLowerCase();
     if (ext === ".docx") {
       return readDocx(options.inputFile);
