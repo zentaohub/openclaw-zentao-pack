@@ -17,10 +17,20 @@ import {
 import { classifyWecomIntentWithLlm, type LlmIntentDecision } from "./llm_intent_router";
 import { buildMissingArgsReply, buildRouteHelpText, buildScriptErrorReply, buildScriptResultReply } from "./wecom_reply_formatter";
 import { collectMissingArgs, extractRouteArgs, findRouteByIntent, findRouteMatch, loadIntentRoutes, normalizeRouteArgs, type IntentRoute, type RouteMatch } from "./wecom_route_resolver";
+import { findContextualSemanticRoute } from "./wecom_context_semantic_resolver";
+import { resolveNamedEntityArgs, resolveNamedProductArg } from "./wecom_named_entity_resolution";
+import { buildPendingRouteSelectionPrompt, buildRouteSelectionReply, parseRouteSelectionIndex } from "./wecom_route_selection";
 import { WecomClient } from "../shared/wecom_client";
 import { dispatchInteractiveCallback } from "./wecom_interactive_dispatcher";
 import { appendRecentWecomMessage, listRecentWecomMessages, type WecomRecentMessageRecord } from "../shared/wecom_recent_message_window";
 import { clearPendingWecomOperation, loadPendingWecomOperation, savePendingWecomOperation } from "../shared/wecom_pending_operation_store";
+import {
+  buildWecomContextualMissingHint,
+  getWecomContextualCandidateSuggestions,
+  resolveRouteArgsFromWecomContext,
+  saveWecomSessionContextFromResult,
+} from "../shared/wecom_session_context_store";
+import { clearPendingRouteSelection, loadPendingRouteSelection } from "../shared/wecom_pending_route_store";
 
 interface CallbackPayload extends JsonObject {
   content?: string;
@@ -306,19 +316,56 @@ function maybeWrapReplyAsTemplateCard(
   } satisfies JsonObject;
 }
 
+function getRouteCliExtraKeys(route: IntentRoute): string[] {
+  switch (route.intent) {
+    case "link-execution-stories":
+      return ["story-ids"];
+    case "link-release-items":
+      return ["story-ids", "bug-ids"];
+    case "link-testtask-cases":
+      return ["cases"];
+    default:
+      return [];
+  }
+}
+
+function normalizeRouteScriptArgs(route: IntentRoute, args: Record<string, string>): Record<string, string> {
+  const normalized = { ...args };
+
+  if (route.intent === "link-execution-stories" && !normalized["story-ids"] && normalized.story) {
+    normalized["story-ids"] = normalized.story;
+  }
+  if (route.intent === "link-release-items") {
+    if (!normalized["story-ids"] && normalized.story) {
+      normalized["story-ids"] = normalized.story;
+    }
+    if (!normalized["bug-ids"] && normalized.bug) {
+      normalized["bug-ids"] = normalized.bug;
+    }
+  }
+  if (route.intent === "link-testtask-cases" && !normalized.cases && normalized.case) {
+    normalized.cases = normalized.case;
+  }
+
+  return normalized;
+}
+
 function toCliArgs(route: IntentRoute, args: Record<string, string>): string[] {
   const allowedKeys = new Set<string>([
     "userid",
     ...route.requiredArgs,
     ...route.requiredArgsAny,
+    ...route.optionalArgs,
     ...Object.keys(route.defaultArgs),
+    ...getRouteCliExtraKeys(route),
   ]);
+  const routeArgs = normalizeRouteScriptArgs(route, args);
   const normalized: Record<string, string> = {};
-  const fallbackUserid = typeof args.userid === "string" && args.userid.trim() && args.userid.trim() !== "current_user"
-    ? args.userid.trim()
+  const fallbackUserid = typeof routeArgs.userid === "string" && routeArgs.userid.trim() && routeArgs.userid.trim() !== "current_user"
+    ? routeArgs.userid.trim()
     : "";
 
-  for (const [rawKey, rawValue] of Object.entries(args)) {
+  for (const [rawKey, rawValue] of Object.entries(routeArgs)) {
     const key = rawKey.trim();
     const value = typeof rawValue === "string" ? rawValue.trim() : "";
     if (!key || !value || key === "current_user") {
@@ -565,6 +612,76 @@ function buildPendingSelectionReply(operationText: string, attachments: Resolved
     ...attachments.map((_, index) => `- 处理第${index + 1}个`),
     "- 取消",
   ].join("\n");
+}
+
+async function resolvePendingRouteSelectionReply(
+  text: string,
+  userid: string,
+  payload: CallbackPayload,
+  values: Record<string, string | boolean | undefined>,
+  routes: IntentRoute[],
+): Promise<JsonObject | null> {
+  const pending = loadPendingRouteSelection(userid);
+  if (!pending) {
+    return null;
+  }
+
+  const trimmedText = text.trim();
+  if (!trimmedText) {
+    clearPendingRouteSelection(userid);
+    return {
+      ok: true,
+      userid,
+      intent: pending.routeIntent,
+      reply_text: "上一条待确认的候选对象已过期，请重新发起一次查询或操作。",
+    } satisfies JsonObject;
+  }
+
+  if (isCancelReply(trimmedText)) {
+    clearPendingRouteSelection(userid);
+    return {
+      ok: true,
+      userid,
+      intent: pending.routeIntent,
+      reply_text: "已取消这次候选对象确认。",
+    } satisfies JsonObject;
+  }
+
+  const selectedIndex = parseRouteSelectionIndex(trimmedText, pending.entity, pending.candidates.length);
+  if (selectedIndex === null) {
+    return {
+      ok: true,
+      userid,
+      intent: pending.routeIntent,
+      pending_route_selection: true,
+      reply_text: buildPendingRouteSelectionPrompt(pending.entity, pending.candidates),
+    } satisfies JsonObject;
+  }
+
+  const route = findRouteByIntent(pending.routeIntent, routes);
+  if (!route) {
+    clearPendingRouteSelection(userid);
+    return {
+      ok: false,
+      userid,
+      intent: pending.routeIntent,
+      reply_text: "待继续的禅道路由已失效，请重新发送原始需求。",
+    } satisfies JsonObject;
+  }
+
+  const selectedCandidate = pending.candidates[selectedIndex];
+  clearPendingRouteSelection(userid);
+  return dispatchRoute(
+    { route, trigger: pending.routeTrigger ?? "pending-selection" },
+    pending.originalText,
+    userid,
+    payload,
+    values,
+    {
+      ...pending.args,
+      [pending.entity]: selectedCandidate.id,
+    },
+  );
 }
 
 function buildPendingExpiredReply(): JsonObject {
@@ -909,9 +1026,62 @@ async function dispatchRoute(match: RouteMatch, text: string, userid: string, pa
   const { route } = match;
   const sourceType = detectWecomMessageSource(payload);
 
-  const args = resolvedArgs ?? extractRouteArgs(text, route, userid);
+  const rawArgs = resolveRouteArgsFromWecomContext({
+    userid,
+    text,
+    intent: route.intent,
+    requiredArgs: route.requiredArgs,
+    requiredArgsAny: route.requiredArgsAny,
+    args: resolvedArgs ?? extractRouteArgs(text, route, userid),
+  });
+  const productResolved = await resolveNamedProductArg(route, text, userid, rawArgs);
+  if (productResolved.reply) {
+    return {
+      ...productResolved.reply,
+      message_source: sourceType,
+      matched_by: match.trigger,
+    };
+  }
+
+  const entityResolved = await resolveNamedEntityArgs(route, text, userid, productResolved.args);
+  if (entityResolved.reply) {
+    return {
+      ...entityResolved.reply,
+      message_source: sourceType,
+      matched_by: match.trigger,
+    };
+  }
+
+  const args = normalizeRouteScriptArgs(route, entityResolved.args);
   const missingArgs = collectMissingArgs(route, args);
   if (missingArgs.length > 0) {
+    const contextualHint = buildWecomContextualMissingHint({
+      userid,
+      requiredArgsAny: route.requiredArgsAny,
+      missingArgs,
+    });
+    const contextualSuggestions = getWecomContextualCandidateSuggestions({
+      userid,
+      requiredArgsAny: route.requiredArgsAny,
+      missingArgs,
+    });
+    if (contextualSuggestions.length > 0) {
+      const primarySuggestion = contextualSuggestions[0];
+      return {
+        ...buildRouteSelectionReply({
+          userid,
+          route,
+          trigger: match.trigger,
+          originalText: text,
+          args,
+          entity: primarySuggestion.entity,
+          candidates: primarySuggestion.candidates,
+          intro: `我先把最近相关的${primarySuggestion.label}列出来，你回复编号后我继续执行刚才的操作：`,
+        }),
+        message_source: sourceType,
+        matched_by: match.trigger,
+      };
+    }
     return {
       ok: true,
       userid,
@@ -921,12 +1091,14 @@ async function dispatchRoute(match: RouteMatch, text: string, userid: string, pa
       route_script: route.script,
       route_args: args,
       missing_args: missingArgs,
-      reply_text: buildMissingArgsReply(route, missingArgs),
+      reply_text: contextualHint
+        ? `${buildMissingArgsReply(route, missingArgs)}\n${contextualHint}`
+        : buildMissingArgsReply(route, missingArgs),
     };
   }
 
   const scriptResult = runScript(route, args);
-  return {
+  const result = {
     ...scriptResult,
     ok: scriptResult.ok === undefined ? true : scriptResult.ok,
     userid,
@@ -939,6 +1111,18 @@ async function dispatchRoute(match: RouteMatch, text: string, userid: string, pa
       ? buildScriptErrorReply(route, scriptResult)
       : buildScriptResultReply(route, scriptResult, userid, sourceType, args),
   };
+
+  if (result.ok !== false) {
+    saveWecomSessionContextFromResult({
+      userid,
+      text,
+      intent: route.intent,
+      args,
+      result,
+    });
+  }
+
+  return result;
 }
 
 function normalizeFallbackTriggerText(value: string): string {
@@ -986,7 +1170,14 @@ function resolveRouteArgsWithLlmRepair(input: {
   match: RouteMatch;
   llmDecision: LlmIntentDecision | null;
 }): RouteRepairResult | null {
-  const baseArgs = extractRouteArgs(input.text, input.match.route, input.userid);
+  const baseArgs = resolveRouteArgsFromWecomContext({
+    userid: input.userid,
+    text: input.text,
+    intent: input.match.route.intent,
+    requiredArgs: input.match.route.requiredArgs,
+    requiredArgsAny: input.match.route.requiredArgsAny,
+    args: extractRouteArgs(input.text, input.match.route, input.userid),
+  });
   const baseMissingArgs = collectMissingArgs(input.match.route, baseArgs);
   if (baseMissingArgs.length === 0) {
     return {
@@ -1017,10 +1208,17 @@ function resolveRouteArgsWithLlmRepair(input: {
     route: candidateRoute,
     trigger: input.llmDecision.intent === candidateRoute.intent ? "llm-repair" : input.match.trigger,
   };
-  const candidateArgs = {
-    ...extractRouteArgs(input.text, candidateRoute, input.userid),
-    ...llmArgs,
-  };
+  const candidateArgs = resolveRouteArgsFromWecomContext({
+    userid: input.userid,
+    text: input.text,
+    intent: candidateRoute.intent,
+    requiredArgs: candidateRoute.requiredArgs,
+    requiredArgsAny: candidateRoute.requiredArgsAny,
+    args: {
+      ...extractRouteArgs(input.text, candidateRoute, input.userid),
+      ...llmArgs,
+    },
+  });
   const candidateMissingArgs = collectMissingArgs(candidateRoute, candidateArgs);
 
   if (candidateMissingArgs.length >= baseMissingArgs.length) {
@@ -1159,6 +1357,16 @@ async function main(): Promise<void> {
   }
 
   const valuesRecord = values as Record<string, string | boolean | undefined>;
+  const pendingRouteReply = await resolvePendingRouteSelectionReply(text, userid, payload, valuesRecord, routes);
+  if (pendingRouteReply) {
+    printJson(maybeWrapReplyAsTemplateCard({
+      ...pendingRouteReply,
+      message_source: sourceType,
+      route_source: "pending_route_selection",
+    }, replyFormat, userid));
+    return;
+  }
+
   if (shouldBypassZentaoLlm(text)) {
     const generalAiAck = buildGeneralAiAckPayload(text);
     printJson(maybeWrapReplyAsTemplateCard({
@@ -1178,8 +1386,10 @@ async function main(): Promise<void> {
     }, replyFormat, userid));
     return;
   }
+
   let llmDecision: LlmIntentDecision | null = null;
-  const match = findRouteMatch(text, routes);
+  const semanticResolution = findContextualSemanticRoute(text, userid, routes);
+  const match = semanticResolution?.match ?? findRouteMatch(text, routes);
   if (match) {
     const repaired = resolveRouteArgsWithLlmRepair({
       text,
@@ -1213,10 +1423,38 @@ async function main(): Promise<void> {
     printJson(maybeWrapReplyAsTemplateCard({
       ...result,
       message_source: sourceType,
-      route_source: llmDecision ? "yaml_llm_repair" : "yaml",
+      route_source: semanticResolution
+        ? (llmDecision ? "semantic_llm_repair" : "semantic")
+        : (llmDecision ? "yaml_llm_repair" : "yaml"),
+      semantic_reason: semanticResolution?.reason,
       llm_decision: llmDecision ?? undefined,
     }, replyFormat, userid));
     return;
+  }
+
+  llmDecision = await classifyWecomIntentWithLlm({
+    text,
+    userid,
+    routes,
+  });
+
+  if (llmDecision?.is_zentao_request && typeof llmDecision.intent === "string" && llmDecision.intent.trim()) {
+    const route = findRouteByIntent(llmDecision.intent, routes);
+    if (route) {
+      const llmArgs = normalizeRouteArgs(llmDecision.args as JsonObject | undefined);
+      const mergedArgs = {
+        ...extractRouteArgs(text, route, userid),
+        ...llmArgs,
+      };
+      const result = await dispatchRoute({ route, trigger: "llm" }, text, userid, payload, valuesRecord, mergedArgs);
+      printJson(maybeWrapReplyAsTemplateCard({
+        ...result,
+        message_source: sourceType,
+        route_source: "llm",
+        llm_decision: llmDecision satisfies LlmIntentDecision,
+      }, replyFormat, userid));
+      return;
+    }
   }
 
   const generalAiAck = buildGeneralAiAckPayload(text);
@@ -1231,10 +1469,13 @@ async function main(): Promise<void> {
     should_fallback_to_general_ai: true,
     fallback_ack_text: generalAiAck.ackText,
     fallback_estimated_seconds: generalAiAck.estimatedSeconds,
-    preferred_general_agent: "fast-general-ai",
-    skip_zentao_llm_classification: true,
-    fallback_reason: "yaml_miss_fast_general",
-    route_source: "yaml_miss_fast_general",
+    preferred_general_agent: shouldPreferFastGeneralAi(text) ? "fast-general-ai" : undefined,
+    skip_zentao_llm_classification: shouldPreferFastGeneralAi(text) ? true : undefined,
+    fallback_reason: shouldPreferFastGeneralAi(text) ? "open_question_non_zentao" : undefined,
+    route_source: shouldPreferFastGeneralAi(text)
+      ? "fast_general_open_question"
+      : llmDecision ? "llm_non_zentao" : "yaml_miss",
+    llm_decision: llmDecision,
   }, replyFormat, userid));
 }
 

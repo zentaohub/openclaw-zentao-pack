@@ -8,6 +8,7 @@ export interface IntentRoute {
   script: string;
   requiredArgs: string[];
   requiredArgsAny: string[];
+  optionalArgs: string[];
   defaultArgs: Record<string, string>;
   replyTemplate?: string;
 }
@@ -40,6 +41,10 @@ const ENTITY_PATTERNS: Record<string, RegExp[]> = {
   module: [/(?:模块|module)\s*[#：:,-]?\s*(\d+)/giu],
   program: [/(?:项目集|program)\s*[#：:,-]?\s*(\d+)/giu],
 };
+const ENTITY_ID_ARG_NAMES = new Set(Object.keys(ENTITY_PATTERNS).concat(["build"]));
+const KEYWORD_EXISTENCE_PREFIXES = ["有没有", "是否有", "有无", "有哪些", "有什么", "有啥", "有"];
+const KEYWORD_SEARCH_VERBS = ["查询", "查看", "搜索", "查", "看", "搜", "找"];
+const KEYWORD_LIST_SUFFIXES = ["列表", "清单"];
 
 function normalizeText(text: string): string {
   let normalized = text.trim().toLowerCase();
@@ -77,7 +82,6 @@ function normalizeText(text: string): string {
   normalized = normalized.replace(/查下我的bug/gu, "我的bug");
   normalized = normalized.replace(/看一下我的bug/gu, "我的bug");
   normalized = normalized.replace(/查一下我的bug/gu, "我的bug");
-
   normalized = normalized.replace(/^(现在|当前)\s*/u, "");
   normalized = normalized.replace(/\s+/gu, " ").trim();
   return normalized;
@@ -116,6 +120,7 @@ function parseIntentRoutes(yamlText: string): IntentRoute[] {
         script: "",
         requiredArgs: [],
         requiredArgsAny: [],
+        optionalArgs: [],
         defaultArgs: {},
       };
       currentMap = null;
@@ -142,6 +147,13 @@ function parseIntentRoutes(yamlText: string): IntentRoute[] {
     if (trimmed.startsWith("required_args_any:")) {
       const value = trimmed.slice("required_args_any:".length).trim();
       current.requiredArgsAny = value.startsWith("[") ? parseInlineList(value) : [];
+      currentMap = null;
+      continue;
+    }
+
+    if (trimmed.startsWith("optional_args:")) {
+      const value = trimmed.slice("optional_args:".length).trim();
+      current.optionalArgs = value.startsWith("[") ? parseInlineList(value) : [];
       currentMap = null;
       continue;
     }
@@ -261,6 +273,210 @@ function extractAssignedTo(text: string): string | undefined {
   return undefined;
 }
 
+function cleanLabeledValue(rawValue: string): string | undefined {
+  const normalized = rawValue
+    .trim()
+    .replace(/^[：:，,\s]+/gu, "")
+    .replace(/[，,\s]+$/gu, "")
+    .trim();
+  return normalized || undefined;
+}
+
+function trimStoryFieldValue(rawValue: string, fieldName: "title" | "spec" | "verify" | "reviewer"): string | undefined {
+  let normalized = cleanLabeledValue(rawValue) ?? "";
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (fieldName === "reviewer") {
+    normalized = normalized
+      .replace(/(?:创建|新建|新增|提)(?:需求|story)\s*$/iu, "")
+      .replace(/(?:就行|即可|就好|好了)\s*$/iu, "")
+      .trim();
+  }
+
+  normalized = normalized.replace(/[，,。；;]+$/gu, "").trim();
+  return normalized || undefined;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildPhraseRegexSource(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map((part) => escapeRegex(part))
+    .join("\\s*");
+}
+
+function extractStoryCreateField(
+  text: string,
+  fieldName: "title" | "spec" | "verify" | "reviewer",
+  labels: string[],
+  nextLabels: string[],
+): string | undefined {
+  const labelSource = labels.map((label) => escapeRegex(label)).join("|");
+  const nextLabelSource = nextLabels.map((label) => escapeRegex(label)).join("|");
+  const pattern = nextLabelSource
+    ? new RegExp(`(?:${labelSource})\\s*[叫是为:]?\\s*(.+?)(?=(?:[，,；;。]\\s*)?(?:${nextLabelSource})|$)`, "iu")
+    : new RegExp(`(?:${labelSource})\\s*[叫是为:]?\\s*(.+)$`, "iu");
+  const matched = text.match(pattern);
+  return trimStoryFieldValue(matched?.[1] ?? "", fieldName);
+}
+
+function extractCreateStoryArgs(text: string): Record<string, string> {
+  const args: Record<string, string> = {};
+  const labels = {
+    title: ["标题叫", "标题是", "标题为", "标题"],
+    spec: ["需求描述是", "需求描述为", "需求描述", "描述是", "描述为", "描述"],
+    verify: ["验收标准是", "验收标准为", "验收标准"],
+    reviewer: ["评审人先填", "评审人是", "评审人填", "评审人", "评审先给", "评审给"],
+  };
+
+  const title = extractStoryCreateField(text, "title", labels.title, [...labels.spec, ...labels.verify, ...labels.reviewer]);
+  if (title) {
+    args.title = title;
+  }
+
+  const spec = extractStoryCreateField(text, "spec", labels.spec, [...labels.verify, ...labels.reviewer]);
+  if (spec) {
+    args.spec = spec;
+  }
+
+  const verify = extractStoryCreateField(text, "verify", labels.verify, labels.reviewer);
+  if (verify) {
+    args.verify = verify;
+  }
+
+  const reviewer = extractStoryCreateField(text, "reviewer", labels.reviewer, []);
+  if (reviewer) {
+    args.reviewer = reviewer;
+  }
+
+  return args;
+}
+
+function compactNormalizedText(text: string): string {
+  return normalizeText(text).replace(/\s+/gu, "");
+}
+
+function stripKeywordAliasDecorators(rawValue: string): string {
+  let normalized = rawValue.trim();
+  let previous = "";
+
+  while (normalized && normalized !== previous) {
+    previous = normalized;
+    normalized = normalized
+      .replace(/^(帮我|给我|麻烦你|麻烦|请你|请|帮忙)\s*/iu, "")
+      .replace(/^(查询|查看|搜索|查一下|查下|查|看一下|看下|看看|看|搜一下|搜下|搜|找一下|找下|找)\s*/iu, "")
+      .replace(/^(有哪些|有什么|有啥|我的|我负责的|当前|现在|这个|该)\s*/iu, "")
+      .replace(/(?:列表|清单|详情|明细|概览|总览|情况)\s*$/iu, "")
+      .trim();
+  }
+
+  return normalized;
+}
+
+function buildRouteKeywordContext(route: IntentRoute): { aliases: string[]; noisePhrases: Set<string> } {
+  const aliasMap = new Map<string, string>();
+  const noisePhrases = new Set<string>();
+
+  for (const trigger of route.triggers) {
+    const compactTrigger = compactNormalizedText(trigger);
+    if (compactTrigger) {
+      noisePhrases.add(compactTrigger);
+    }
+
+    const alias = stripKeywordAliasDecorators(trigger);
+    const compactAlias = compactNormalizedText(alias);
+    if (!compactAlias) {
+      continue;
+    }
+    if (!aliasMap.has(compactAlias)) {
+      aliasMap.set(compactAlias, alias);
+    }
+  }
+
+  const aliases = Array.from(aliasMap.values()).sort((left, right) => right.length - left.length);
+  for (const alias of aliases) {
+    const compactAlias = compactNormalizedText(alias);
+    noisePhrases.add(compactAlias);
+    for (const prefix of KEYWORD_EXISTENCE_PREFIXES) {
+      noisePhrases.add(compactNormalizedText(`${prefix}${alias}`));
+    }
+    for (const verb of KEYWORD_SEARCH_VERBS) {
+      noisePhrases.add(compactNormalizedText(`${verb}${alias}`));
+    }
+    for (const suffix of KEYWORD_LIST_SUFFIXES) {
+      noisePhrases.add(compactNormalizedText(`${alias}${suffix}`));
+    }
+  }
+
+  return { aliases, noisePhrases };
+}
+
+function normalizeKeywordCandidate(rawValue: string, route: IntentRoute): string | undefined {
+  const normalized = rawValue
+    .trim()
+    .replace(/^[：:，,。！？!?、\s]+/gu, "")
+    .replace(/[。！？!?、\s]+$/gu, "")
+    .replace(/^(有没有|是否有|有无|有哪些|有什么|有啥|有)\s*/u, "")
+    .replace(/^(帮我|给我|麻烦你|麻烦|请你|请|帮忙)\s*/u, "")
+    .trim();
+
+  const compactCandidate = compactNormalizedText(normalized);
+  if (!compactCandidate) {
+    return undefined;
+  }
+
+  const { noisePhrases } = buildRouteKeywordContext(route);
+  if (noisePhrases.has(compactCandidate)) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function extractRouteKeywords(text: string, route: IntentRoute): string | undefined {
+  const { aliases } = buildRouteKeywordContext(route);
+  if (aliases.length === 0) {
+    return undefined;
+  }
+
+  const existencePrefixSource = KEYWORD_EXISTENCE_PREFIXES
+    .slice()
+    .sort((left, right) => right.length - left.length)
+    .map((item) => escapeRegex(item))
+    .join("|");
+  const searchVerbSource = KEYWORD_SEARCH_VERBS
+    .slice()
+    .sort((left, right) => right.length - left.length)
+    .map((item) => escapeRegex(item))
+    .join("|");
+
+  for (const alias of aliases) {
+    const aliasSource = buildPhraseRegexSource(alias);
+    const patterns = [
+      new RegExp(`(?:${aliasSource}(?:列表|清单)?)(?:里|中)?(?:${existencePrefixSource})\\s*["“”'‘’]?(.+?)["“”'‘’]?(?:\\?|？)?$`, "iu"),
+      new RegExp(`(?:${searchVerbSource})(?:一下|下)?\\s*["“”'‘’]?(.+?)["“”'‘’]?(?:这个|该)?${aliasSource}(?:\\?|？)?$`, "iu"),
+      new RegExp(`(?:${searchVerbSource})(?:一下|下)?${aliasSource}\\s*["“”'‘’]?(.+?)["“”'‘’]?(?:\\?|？)?$`, "iu"),
+    ];
+
+    for (const pattern of patterns) {
+      const matched = text.match(pattern);
+      const candidate = normalizeKeywordCandidate(matched?.[1] ?? "", route);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export function extractRouteArgs(text: string, route: IntentRoute, userid: string): Record<string, string> {
   const args: Record<string, string> = {};
   if (route.defaultArgs.userid === "current_user") {
@@ -300,6 +516,22 @@ export function extractRouteArgs(text: string, route: IntentRoute, userid: strin
     }
   }
 
+  if (route.intent === "create-story") {
+    const storyArgs = extractCreateStoryArgs(text);
+    for (const [key, value] of Object.entries(storyArgs)) {
+      if (!args[key] && value) {
+        args[key] = value;
+      }
+    }
+  }
+
+  if (route.optionalArgs.includes("keywords") && !args.keywords) {
+    const keywords = extractRouteKeywords(text, route);
+    if (keywords) {
+      args.keywords = keywords;
+    }
+  }
+
   return args;
 }
 
@@ -313,9 +545,15 @@ export function normalizeRouteArgs(value: JsonObject | undefined): Record<string
     if (raw === undefined || raw === null) {
       continue;
     }
-    const normalized = String(raw).trim();
+    let normalized = String(raw).trim();
     if (!normalized) {
       continue;
+    }
+    if (ENTITY_ID_ARG_NAMES.has(key)) {
+      const numericMatch = normalized.match(/\d+/u);
+      if (numericMatch?.[0]) {
+        normalized = numericMatch[0];
+      }
     }
     args[key] = normalized;
   }

@@ -58,10 +58,16 @@ async function main(): Promise<void> {
   const client = new ZentaoClient({ userid: values.userid });
   await client.login(false);
   const result = await client.createStory(payload);
+  const storyId =
+    typeof result.story_id === "number" ? result.story_id
+      : typeof result.id === "number" ? result.id
+        : typeof result.story === "object" && result.story !== null && !Array.isArray(result.story) && typeof result.story.id === "number"
+          ? result.story.id
+          : null;
   printJson({
     ok: true,
     action: "create-story",
-    story_id: result.story_id ?? result.id ?? null,
+    story_id: storyId,
     title: payload.title,
     product: payload.product,
     reviewer: payload.reviewer,
