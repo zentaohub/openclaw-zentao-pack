@@ -1555,10 +1555,23 @@ export class ZentaoClient {
 
     const route = `/story-create-${productId}-0-0-0-0-0-0-0.html`;
     const formMeta = await this.getWebFormMeta(route);
-    const reviewer = firstNonEmptyString(typeof payload.reviewer === "string" ? payload.reviewer : undefined);
+    const beforeList = await this.getWebJsonViewData(`/product-all-0.json`);
+    const users = isJsonObject(beforeList.users) ? beforeList.users : null;
+    const reviewerInput = firstNonEmptyString(typeof payload.reviewer === "string" ? payload.reviewer : undefined);
+    const reviewer = ensureSelectableUser(users, "reviewer", reviewerInput);
     if (!reviewer) {
       throw new Error("Story create requires payload.reviewer");
     }
+    const assignedTo = resolveSelectableUser(
+      users,
+      firstNonEmptyString(
+        typeof payload.assignedTo === "string" ? payload.assignedTo : undefined,
+        this.userid,
+        this.account,
+        reviewer,
+        "admin",
+      ) ?? "admin",
+    ) ?? "admin";
 
     const formBody: Record<string, string> = {
       product: String(productId),
@@ -1566,14 +1579,7 @@ export class ZentaoClient {
       parent: stringifyOptional(payload.parent) ?? "0",
       grade: stringifyOptional(payload.grade) ?? "1",
       "reviewer[]": reviewer,
-      assignedTo:
-        firstNonEmptyString(
-          typeof payload.assignedTo === "string" ? payload.assignedTo : undefined,
-          this.userid,
-          this.account,
-          reviewer,
-          "admin",
-        ) ?? "admin",
+      assignedTo,
       category: firstNonEmptyString(typeof payload.category === "string" ? payload.category : undefined, "SR") ?? "SR",
       title: firstNonEmptyString(typeof payload.title === "string" ? payload.title : undefined) ?? "",
       pri: stringifyOptional(payload.pri) ?? "3",
