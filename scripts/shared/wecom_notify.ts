@@ -147,7 +147,22 @@ export async function notifyTaskStatusChanged(input: BaseNotifyInput & { taskId:
     return buildSkipped("task", "status_changed", `task ${input.taskId} not found`);
   }
 
-  const context = await buildTaskContext(client, task, input.taskId, input);
+  const context = await buildTaskContext(client, task, input.taskId, input, "status_changed");
+  return dispatchNotification(context);
+}
+
+export async function notifyTaskAssigned(input: BaseNotifyInput & { taskId: number; newAssignee: string }): Promise<NotifyResult> {
+  const client = new ZentaoClient({ userid: input.operatorUserid });
+  const viewData = await client.getWebJsonViewData(`/task-view-${input.taskId}.json`);
+  const task = asObject(viewData.task);
+  if (!task) {
+    return buildSkipped("task", "assignee_changed", `task ${input.taskId} not found`);
+  }
+
+  const context = await buildTaskContext(client, task, input.taskId, {
+    ...input,
+    newStatus: getString(task, "status"),
+  }, "assignee_changed");
   return dispatchNotification(context);
 }
 
@@ -186,7 +201,22 @@ export async function notifyStoryStatusChanged(input: BaseNotifyInput & { storyI
     return buildSkipped("story", "status_changed", `story ${input.storyId} not found`);
   }
 
-  const context = await buildStoryContext(client, story, input.storyId, input, input.closedReason);
+  const context = await buildStoryContext(client, story, input.storyId, input, "status_changed", input.closedReason);
+  return dispatchNotification(context);
+}
+
+export async function notifyStoryAssigned(input: BaseNotifyInput & { storyId: number; newAssignee: string }): Promise<NotifyResult> {
+  const client = new ZentaoClient({ userid: input.operatorUserid });
+  const viewData = await client.getWebJsonViewData(`/story-view-${input.storyId}.json`);
+  const story = asObject(viewData.story ?? viewData);
+  if (!story) {
+    return buildSkipped("story", "assignee_changed", `story ${input.storyId} not found`);
+  }
+
+  const context = await buildStoryContext(client, story, input.storyId, {
+    ...input,
+    newStatus: getString(story, "status"),
+  }, "assignee_changed");
   return dispatchNotification(context);
 }
 
@@ -306,11 +336,18 @@ async function dispatchNotification(context: NotifyContext): Promise<NotifyResul
   });
 }
 
-async function buildTaskContext(client: ZentaoClient, task: JsonObject, taskId: number, input: BaseNotifyInput): Promise<NotifyContext> {
+async function buildTaskContext(
+  client: ZentaoClient,
+  task: JsonObject,
+  taskId: number,
+  input: BaseNotifyInput,
+  eventType: SupportedEventType = "status_changed",
+): Promise<NotifyContext> {
   const relatedStory = await resolveLinkedStory(client, task.story);
   const affectStory = normalizePositiveNumber(task.story) !== undefined;
   const isKeyTask = isPriorityHigh(task.pri);
   const impactDev = collectUsers(
+    input.newAssignee,
     ...getUserIds(task, "assignedTo"),
     ...getUserIds(relatedStory, "assignedTo"),
     ...getUserIds(relatedStory, "openedBy"),
@@ -325,7 +362,7 @@ async function buildTaskContext(client: ZentaoClient, task: JsonObject, taskId: 
   const nextTester = resolveNextTesterForTask(task, relatedStory, input);
   return {
     object_type: "task",
-    event_type: "status_changed",
+    event_type: eventType,
     entity: {
       ...task,
       affect_story: affectStory,
@@ -335,6 +372,8 @@ async function buildTaskContext(client: ZentaoClient, task: JsonObject, taskId: 
     change: {
       old_status_name: input.oldStatus,
       new_status_name: input.newStatus,
+      old_assignee_name: input.oldAssignee,
+      new_assignee_name: input.newAssignee,
       reason: input.comment,
     },
     links: {
@@ -348,7 +387,9 @@ async function buildTaskContext(client: ZentaoClient, task: JsonObject, taskId: 
       project_owner: [],
       collaborators: collectUsers(getString(task, "mailto")),
       related_story_owner: collectUsers(getString(relatedStory, "assignedTo"), getString(relatedStory, "openedBy")),
-      next_dev: nextDev,
+      old_assignee: collectUsers(input.oldAssignee),
+      new_assignee: collectUsers(input.newAssignee),
+      next_dev: nextDev.length > 0 ? nextDev : impactDev,
       next_tester: nextTester,
     },
   };
@@ -406,19 +447,28 @@ async function buildBugContext(client: ZentaoClient, bug: JsonObject, bugId: num
   };
 }
 
-async function buildStoryContext(client: ZentaoClient, story: JsonObject, storyId: number, input: BaseNotifyInput, closedReason?: string): Promise<NotifyContext> {
-  const impactDev = collectUsers(...getUserIds(story, "assignedTo"), ...getUserIds(story, "openedBy"));
+async function buildStoryContext(
+  client: ZentaoClient,
+  story: JsonObject,
+  storyId: number,
+  input: BaseNotifyInput,
+  eventType: SupportedEventType = "status_changed",
+  closedReason?: string,
+): Promise<NotifyContext> {
+  const impactDev = collectUsers(input.newAssignee, ...getUserIds(story, "assignedTo"), ...getUserIds(story, "openedBy"));
   const impactTester = collectUsers(...getUserIds(story, "reviewedBy"), ...getUserIds(story, "reviewer"), ...getUserIds(story, "closedBy"));
   const nextDev = resolveNextDevForStory(story, input);
   const nextTester = resolveNextTesterForStory(story, input);
   return {
     object_type: "story",
-    event_type: "status_changed",
+    event_type: eventType,
     entity: story,
     operatorUserid: input.operatorUserid,
     change: {
       old_status_name: input.oldStatus,
       new_status_name: input.newStatus,
+      old_assignee_name: input.oldAssignee,
+      new_assignee_name: input.newAssignee,
       reason: closedReason ?? input.comment,
     },
     links: {
@@ -428,6 +478,8 @@ async function buildStoryContext(client: ZentaoClient, story: JsonObject, storyI
       creator: collectUsers(getString(story, "openedBy")),
       requester: collectUsers(getString(story, "openedBy")),
       current_assignee: impactDev,
+      old_assignee: collectUsers(input.oldAssignee),
+      new_assignee: collectUsers(input.newAssignee),
       tester: impactTester,
       pm: [],
       project_owner: [],
@@ -815,6 +867,9 @@ function normalizePositiveNumber(value: JsonValue | undefined): number | undefin
 }
 
 function resolveNextDevForTask(task: JsonObject, relatedStory: JsonObject, input: BaseNotifyInput): string[] {
+  if (input.newAssignee) {
+    return collectUsers(input.newAssignee);
+  }
   const nextStatus = normalizeStatusForRule(input.newStatus ?? getString(task, "status"));
   if (["doing", "blocked", "paused", "delayed", "closed", "canceled"].includes(nextStatus ?? "")) {
     return collectUsers(
@@ -875,6 +930,9 @@ function resolveNextTesterForBug(bug: JsonObject, relatedStory: JsonObject, inpu
 }
 
 function resolveNextDevForStory(story: JsonObject, input: BaseNotifyInput): string[] {
+  if (input.newAssignee) {
+    return collectUsers(input.newAssignee);
+  }
   const nextStatus = input.newStatus ?? getString(story, "status");
   if (["activate", "active", "planned", "projected", "close", "closed", "suspended", "rejected"].includes(nextStatus ?? "")) {
     return collectUsers(...getUserIds(story, "assignedTo"), ...getUserIds(story, "openedBy"));

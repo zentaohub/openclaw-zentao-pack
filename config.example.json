@@ -25,6 +25,15 @@
     "auto_sync_user": true,
     "root_department_id": 1
   },
+  "notification_monitor": {
+    "enabled": true,
+    "state_file": "./tmp/notification-monitor/state.json",
+    "object_types": ["story", "bug", "task"],
+    "max_products": 20,
+    "max_executions": 20,
+    "limit_per_scope": 100,
+    "retention_days": 30
+  },
   "requirement_to_testcase": {
     "output_dir": "./requirement-to-testcase/output",
     "default_format": "excel",

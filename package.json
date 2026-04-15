@@ -8,6 +8,7 @@
         "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "wecom-callback": "npm run build && node dist/scripts/callbacks/wecom_callback.js",
         "wecom-contact-sync": "npm run build && node dist/scripts/callbacks/wecom_contact_sync.js",
+        "poll-wecom-notifications": "npm run build && node dist/scripts/maintenance/poll_wecom_notifications.js",
         "notify-task-change": "npm run build && node dist/scripts/actions/update_task_status.js",
         "notify-bug-change": "npm run build && node dist/scripts/actions/update_bug_status.js",
         "sync-user": "npm run build && node dist/scripts/sync_user.js",

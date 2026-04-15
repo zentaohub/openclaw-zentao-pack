@@ -58,6 +58,17 @@ interface Config {
     auto_sync_user?: boolean;
     root_department_id?: string | number;
   };
+  notification_monitor?: {
+    enabled?: boolean;
+    state_file?: string;
+    object_types?: string[] | string;
+    products?: number[] | string;
+    executions?: number[] | string;
+    max_products?: number | string;
+    max_executions?: number | string;
+    limit_per_scope?: number | string;
+    retention_days?: number | string;
+  };
   user_match?: {
     fields?: string[];
     browse?: string;
