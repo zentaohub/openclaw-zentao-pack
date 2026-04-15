@@ -9,3 +9,5 @@ config.json
 .vscode
 .tmp-agent-template-test/
 tmp/
+tmp/testcase-jobs/
+requirement-to-testcase/output/
