@@ -17,11 +17,17 @@ def now_cst() -> str:
     return datetime.now(CST).strftime("%Y-%m-%d %H:%M CST")
 
 
-def read_paths(path_file: str) -> list[str]:
+def read_snapshot(path_file: str) -> dict[str, str]:
     path = Path(path_file)
     if not path.exists():
-        return []
-    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return {}
+    snapshot: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        item, _, digest = line.partition("\t")
+        snapshot[item.strip()] = digest.strip()
+    return snapshot
 
 
 def pick_key_files(files: list[str], limit: int = 6) -> list[str]:
@@ -106,9 +112,13 @@ def main() -> int:
     parser.add_argument("--paths-after-file", required=True)
     args = parser.parse_args()
 
-    before_paths = set(read_paths(args.paths_before_file))
-    after_paths = set(read_paths(args.paths_after_file))
-    touched_paths = sorted((before_paths | after_paths) - {LOG_REL})
+    before_paths = read_snapshot(args.paths_before_file)
+    after_paths = read_snapshot(args.paths_after_file)
+    touched_paths = sorted(
+        path
+        for path in set(before_paths) | set(after_paths)
+        if path != LOG_REL and before_paths.get(path) != after_paths.get(path)
+    )
     if not touched_paths:
         print("SERVER_STATE_SKIP_EMPTY")
         return 0
