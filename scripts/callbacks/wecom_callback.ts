@@ -80,6 +80,61 @@ const EXACT_MISSING_ARG_FALLBACKS: Record<string, string> = {
   "query-product-modules": "query-products",
   "query-product-stories": "query-my-stories",
 };
+const PRESET_REPLIES: Array<{ id: string; triggers: string[]; reply: string }> = [
+  {
+    id: "intro",
+    triggers: ["你是谁", "介绍一下你", "你是干嘛的"],
+    reply: "我是 AI-PMO，负责项目协同、禅道查询和轻量问答支持。你可以直接问我禅道相关问题，或者先发送“帮助”查看常用指令。",
+  },
+  {
+    id: "help",
+    triggers: ["帮助", "help", "你会什么", "支持哪些命令"],
+    reply: "常用指令包括：我的bug、我的任务、查询我的bug、查任务、创建Bug、创建任务、上线检查。普通开放问答会优先走轻量快答链路。",
+  },
+  {
+    id: "how_create_bug",
+    triggers: ["怎么提bug", "如何提bug", "怎么创建bug"],
+    reply: "你可以直接发送：创建Bug 标题xxx 描述xxx。如果需要，我也可以继续帮你补优先级、所属模块和指派人。",
+  },
+  {
+    id: "how_query_task",
+    triggers: ["怎么查任务", "如何查任务", "怎么查询任务"],
+    reply: "你可以直接发送：我的任务、查任务，或者看下我的任务。若要查详情，也可以发：任务详情 {id}。",
+  },
+];
+const ZENTAO_BUSINESS_KEYWORDS = [
+  "bug",
+  "缺陷",
+  "任务",
+  "需求",
+  "测试",
+  "产品",
+  "项目",
+  "执行",
+  "迭代",
+  "发布",
+  "上线",
+  "验收",
+  "指派",
+  "创建",
+  "提测",
+  "准出",
+];
+const OPEN_QUESTION_HINTS = [
+  "什么",
+  "怎么",
+  "如何",
+  "为什么",
+  "谁",
+  "哪",
+  "可以吗",
+  "能不能",
+  "帮我看",
+  "看下",
+  "看一下",
+  "解释",
+  "介绍",
+];
 
 function normalizeReplyFormat(value: string | undefined): "text" | "template_card" {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -87,6 +142,76 @@ function normalizeReplyFormat(value: string | undefined): "text" | "template_car
     return "template_card";
   }
   return "text";
+}
+
+function normalizeWecomText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/@\S+/gu, " ")
+    .replace(/[，。！？,.!?:：；;（）()【】\[\]{}<>《》"'“”‘’`~\-_/\\|]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function findPresetReply(text: string): { id: string; matchedBy: string; reply: string; normalizedText: string } | null {
+  const normalized = normalizeWecomText(text);
+  if (!normalized) {
+    return null;
+  }
+
+  if (ZENTAO_BUSINESS_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return null;
+  }
+
+  let best: { id: string; matchedBy: string; reply: string; normalizedText: string } | null = null;
+  for (const rule of PRESET_REPLIES) {
+    for (const trigger of rule.triggers) {
+      const normalizedTrigger = normalizeWecomText(trigger);
+      if (!normalizedTrigger) {
+        continue;
+      }
+      if (normalized.includes(normalizedTrigger)) {
+        if (!best || normalizedTrigger.length > best.matchedBy.length) {
+          best = {
+            id: rule.id,
+            matchedBy: normalizedTrigger,
+            reply: rule.reply,
+            normalizedText: normalized,
+          };
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+function shouldPreferFastGeneralAi(text: string): boolean {
+  const normalized = normalizeWecomText(text);
+  if (!normalized) {
+    return false;
+  }
+
+  if (ZENTAO_BUSINESS_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return false;
+  }
+
+  return normalized.length <= 24 && OPEN_QUESTION_HINTS.some((hint) => normalized.includes(hint));
+}
+
+function buildGeneralAiAckPayload(text: string): { ackText: string; estimatedSeconds: number } {
+  if (shouldPreferFastGeneralAi(text)) {
+    return {
+      ackText: "收到，正在快速帮你看，预计 8 到 15 秒。",
+      estimatedSeconds: 15,
+    };
+  }
+
+  return {
+    ackText: "收到，正在处理中，预计 15 到 30 秒。",
+    estimatedSeconds: 30,
+  };
 }
 
 function truncateText(input: string, maxLength: number): string {
@@ -705,6 +830,23 @@ async function main(): Promise<void> {
     return;
   }
 
+  const presetReply = findPresetReply(text);
+  if (presetReply) {
+    printJson(maybeWrapReplyAsTemplateCard({
+      ok: true,
+      userid,
+      message_source: sourceType,
+      intent: "wecom_preset_reply",
+      preset_id: presetReply.id,
+      matched_by: presetReply.matchedBy,
+      input_text: text,
+      normalized_text: presetReply.normalizedText,
+      reply_text: presetReply.reply,
+      route_source: "preset",
+    }, replyFormat, userid));
+    return;
+  }
+
   if (isRequirementToTestcaseRequest(text, payload)) {
     const result = await dispatchRequirementToTestcase(text, userid, payload);
     printJson(maybeWrapReplyAsTemplateCard({
@@ -792,6 +934,8 @@ async function main(): Promise<void> {
     }
   }
 
+  const generalAiAck = buildGeneralAiAckPayload(text);
+
   printJson(maybeWrapReplyAsTemplateCard({
     ok: true,
     userid,
@@ -800,7 +944,14 @@ async function main(): Promise<void> {
     input_text: text,
     reply_text: buildRouteHelpText(routes),
     should_fallback_to_general_ai: true,
-    route_source: llmDecision ? "llm_non_zentao" : "yaml_miss",
+    fallback_ack_text: generalAiAck.ackText,
+    fallback_estimated_seconds: generalAiAck.estimatedSeconds,
+    preferred_general_agent: shouldPreferFastGeneralAi(text) ? "fast-general-ai" : undefined,
+    skip_zentao_llm_classification: shouldPreferFastGeneralAi(text) ? true : undefined,
+    fallback_reason: shouldPreferFastGeneralAi(text) ? "open_question_non_zentao" : undefined,
+    route_source: shouldPreferFastGeneralAi(text)
+      ? "fast_general_open_question"
+      : llmDecision ? "llm_non_zentao" : "yaml_miss",
     llm_decision: llmDecision,
   }, replyFormat, userid));
 }

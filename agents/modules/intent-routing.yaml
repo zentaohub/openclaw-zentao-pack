@@ -11,14 +11,14 @@ strategy:
 
 routes:
   - intent: query-my-tasks
-    triggers: ["我的任务", "查询我的任务", "查我的任务", "查任务", "看任务", "任务列表", "我的待办", "我的待办任务", "待办", "待办任务"]
+    triggers: ["我的任务", "查询我的任务", "查我的任务", "查看我的任务", "查任务", "看任务", "任务列表", "我的待办", "我的待办任务", "待办", "待办任务"]
     script: query-my-tasks
     default_args:
       userid: current_user
     reply_template: query-my-tasks
 
   - intent: query-my-bugs
-    triggers: ["我的bug", "我的 bug", "我的Bug", "我的 Bug", "查询我的bug", "查询我的 bug", "查我的bug", "查我的 bug", "看我的bug", "看我的 bug", "看看我的bug", "bug列表", "我的缺陷"]
+    triggers: ["我的bug", "我的 bug", "我的Bug", "我的 Bug", "查询我的bug", "查询我的 bug", "查我的bug", "查我的 bug", "查看我的bug", "查看我的 bug", "看我的bug", "看我的 bug", "看看我的bug", "bug列表", "我的缺陷"]
     script: query-my-bugs
     reply_template: query-my-bugs
     default_args:

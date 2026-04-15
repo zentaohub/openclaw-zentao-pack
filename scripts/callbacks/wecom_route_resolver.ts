@@ -45,6 +45,7 @@ function normalizeText(text: string): string {
   let normalized = text.trim().toLowerCase();
   normalized = normalized.replace(/[，。！？,.!?:：；;]/gu, " ");
   normalized = normalized.replace(/\s+/gu, " ").trim();
+  normalized = normalized.replace(/@\S+/gu, " ").replace(/\s+/gu, " ").trim();
 
   normalized = normalized.replace(/^(帮我|给我|麻烦你|麻烦|请你|请|帮忙)\s*/u, "");
   normalized = normalized.replace(/(帮我|给我|麻烦你|麻烦|请你|请|帮忙)/gu, " ");
@@ -64,6 +65,18 @@ function normalizeText(text: string): string {
   normalized = normalized.replace(/建个任务/gu, "创建任务");
   normalized = normalized.replace(/建个产品/gu, "创建产品");
   normalized = normalized.replace(/建个模块/gu, "创建模块");
+  normalized = normalized.replace(/看我的任务/gu, "我的任务");
+  normalized = normalized.replace(/查我的任务/gu, "我的任务");
+  normalized = normalized.replace(/看下我的任务/gu, "我的任务");
+  normalized = normalized.replace(/查下我的任务/gu, "我的任务");
+  normalized = normalized.replace(/看一下我的任务/gu, "我的任务");
+  normalized = normalized.replace(/查一下我的任务/gu, "我的任务");
+  normalized = normalized.replace(/看我的bug/gu, "我的bug");
+  normalized = normalized.replace(/查我的bug/gu, "我的bug");
+  normalized = normalized.replace(/看下我的bug/gu, "我的bug");
+  normalized = normalized.replace(/查下我的bug/gu, "我的bug");
+  normalized = normalized.replace(/看一下我的bug/gu, "我的bug");
+  normalized = normalized.replace(/查一下我的bug/gu, "我的bug");
 
   normalized = normalized.replace(/^(现在|当前)\s*/u, "");
   normalized = normalized.replace(/\s+/gu, " ").trim();

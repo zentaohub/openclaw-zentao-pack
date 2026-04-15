@@ -27,6 +27,55 @@ interface RuntimeProviderConfig {
 
 const OPENAI_YAML_PATH = path.resolve(__dirname, "../../../agents/openai.yaml");
 const OPENCLAW_RUNTIME_PATH = "/root/.openclaw/private/openclaw.runtime.json";
+const NON_ZENTAO_FAST_REPLIES = [
+  "你是谁",
+  "帮助",
+  "help",
+  "你会什么",
+  "支持哪些命令",
+  "你好",
+  "在吗",
+  "收到没",
+  "怎么提bug",
+  "如何提bug",
+  "怎么创建bug",
+  "怎么查任务",
+  "如何查任务",
+  "怎么查询任务",
+];
+const ZENTAO_BUSINESS_KEYWORDS = [
+  "bug",
+  "缺陷",
+  "任务",
+  "需求",
+  "测试",
+  "产品",
+  "项目",
+  "执行",
+  "迭代",
+  "发布",
+  "上线",
+  "验收",
+  "指派",
+  "创建",
+  "提测",
+  "准出",
+];
+const OPEN_QUESTION_HINTS = [
+  "什么",
+  "怎么",
+  "如何",
+  "为什么",
+  "谁",
+  "哪",
+  "可以吗",
+  "能不能",
+  "帮我看",
+  "看下",
+  "看一下",
+  "解释",
+  "介绍",
+];
 
 function firstNonEmptyString(...values: Array<string | undefined | null>): string | undefined {
   for (const value of values) {
@@ -35,6 +84,33 @@ function firstNonEmptyString(...values: Array<string | undefined | null>): strin
     }
   }
   return undefined;
+}
+
+function normalizeClassifierText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/@\S+/gu, " ")
+    .replace(/[，。！？,.!?:：；;（）()【】\[\]{}<>《》"'“”‘’`~\-_/\\|]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function isObviousNonZentao(text: string): boolean {
+  const normalized = normalizeClassifierText(text);
+  if (!normalized) {
+    return false;
+  }
+
+  if (NON_ZENTAO_FAST_REPLIES.includes(normalized)) {
+    return true;
+  }
+
+  if (ZENTAO_BUSINESS_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return false;
+  }
+
+  return normalized.length <= 24 && OPEN_QUESTION_HINTS.some((hint) => normalized.includes(hint));
 }
 
 function loadAgentPrompt(): string {
@@ -304,6 +380,14 @@ export async function classifyWecomIntentWithLlm(input: {
   userid: string;
   routes: IntentRouteLite[];
 }): Promise<LlmIntentDecision | null> {
+  if (isObviousNonZentao(input.text)) {
+    return {
+      is_zentao_request: false,
+      confidence: 0.99,
+      reason: "obvious_non_zentao_short_input",
+    };
+  }
+
   const provider = loadRuntimeProvider();
   if (!provider) {
     return null;
