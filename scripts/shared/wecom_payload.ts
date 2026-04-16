@@ -227,18 +227,18 @@ export function detectWecomMessageSource(payload: WecomMessagePayload): WecomMes
   const sender = toObject(payload.sender);
 
   if (
+    getNestedString(payload, ["MsgType", "FromUserName", "ToUserName", "AgentID"]) ||
+    getNestedString(body, ["MsgType", "FromUserName", "ToUserName", "AgentID"])
+  ) {
+    return "agent";
+  }
+
+  if (
     getNestedString(payload, ["msgtype", "userid", "userId", "response_url"]) ||
     getNestedString(body, ["msgtype"]) ||
     getNestedString(sender, ["userid", "userId", "from_user_id"])
   ) {
     return "bot";
-  }
-
-  if (
-    getNestedString(payload, ["MsgType", "FromUserName", "ToUserName", "AgentID"]) ||
-    getNestedString(body, ["MsgType", "FromUserName", "ToUserName", "AgentID"])
-  ) {
-    return "agent";
   }
 
   return "unknown";

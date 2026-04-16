@@ -101,6 +101,7 @@ const ZENTAO_BUSINESS_KEYWORDS = [
   "需求",
   "测试",
   "产品",
+  "模块",
   "项目",
   "执行",
   "迭代",
@@ -179,7 +180,7 @@ function findPresetReply(text: string): { id: string; matchedBy: string; reply: 
   return best;
 }
 
-function shouldPreferFastGeneralAi(text: string): boolean {
+export function shouldPreferFastGeneralAi(text: string): boolean {
   const normalized = normalizeWecomText(text);
   if (!normalized) {
     return false;
@@ -192,7 +193,7 @@ function shouldPreferFastGeneralAi(text: string): boolean {
   return normalized.length <= 24 && OPEN_QUESTION_HINTS.some((hint) => normalized.includes(hint));
 }
 
-function shouldBypassZentaoLlm(text: string): boolean {
+export function shouldBypassZentaoLlm(text: string): boolean {
   const normalized = normalizeWecomText(text);
   if (!normalized || normalized.length > 12) {
     return false;
@@ -937,26 +938,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (shouldBypassZentaoLlm(text)) {
-    const generalAiAck = buildGeneralAiAckPayload(text);
-    printJson(maybeWrapReplyAsTemplateCard({
-      ok: true,
-      userid,
-      message_source: sourceType,
-      intent: "non_zentao_or_unknown",
-      input_text: text,
-      reply_text: buildRouteHelpText(routes),
-      should_fallback_to_general_ai: true,
-      fallback_ack_text: generalAiAck.ackText,
-      fallback_estimated_seconds: generalAiAck.estimatedSeconds,
-      preferred_general_agent: "fast-general-ai",
-      skip_zentao_llm_classification: true,
-      fallback_reason: "short_input_bypass",
-      route_source: "short_input_bypass",
-    }, replyFormat, userid));
-    return;
-  }
-
   let llmDecision: LlmIntentDecision | null = null;
   const semanticResolution = findContextualSemanticRoute(text, userid, routes);
   const match = semanticResolution?.match ?? findRouteMatch(text, routes);
@@ -998,6 +979,26 @@ async function main(): Promise<void> {
         : (llmDecision ? "yaml_llm_repair" : "yaml"),
       semantic_reason: semanticResolution?.reason,
       llm_decision: llmDecision ?? undefined,
+    }, replyFormat, userid));
+    return;
+  }
+
+  if (shouldBypassZentaoLlm(text)) {
+    const generalAiAck = buildGeneralAiAckPayload(text);
+    printJson(maybeWrapReplyAsTemplateCard({
+      ok: true,
+      userid,
+      message_source: sourceType,
+      intent: "non_zentao_or_unknown",
+      input_text: text,
+      reply_text: buildRouteHelpText(routes),
+      should_fallback_to_general_ai: true,
+      fallback_ack_text: generalAiAck.ackText,
+      fallback_estimated_seconds: generalAiAck.estimatedSeconds,
+      preferred_general_agent: "fast-general-ai",
+      skip_zentao_llm_classification: true,
+      fallback_reason: "short_input_bypass",
+      route_source: "short_input_bypass",
     }, replyFormat, userid));
     return;
   }
@@ -1049,7 +1050,9 @@ async function main(): Promise<void> {
   }, replyFormat, userid));
 }
 
-void main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
-  process.exit(1);
-});
+if (require.main === module) {
+  void main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    process.exit(1);
+  });
+}

@@ -37,7 +37,7 @@ routes:
     required_args: [product]
 
   - intent: query-product-modules
-    triggers: ["查模块", "产品模块", "看模块", "模块列表"]
+    triggers: ["查模块", "产品模块", "看模块", "模块列表", "有哪些模块", "产品有哪些模块", "这个产品有哪些模块"]
     script: query-product-modules
     reply_template: query-product-modules
     required_args: [product]
