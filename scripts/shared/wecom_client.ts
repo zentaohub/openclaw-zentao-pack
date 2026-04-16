@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { request as httpsRequest } from "node:https";
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
@@ -6,8 +7,8 @@ import { URL } from "node:url";
 import { type JsonObject, type JsonValue, loadConfig } from "./zentao_client";
 
 const DEFAULT_WECOM_API_BASE_URL = "https://qyapi.weixin.qq.com";
-const TOKEN_CACHE_PATH = join(tmpdir(), "openclaw-zentao-wecom-token.json");
 const TOKEN_REFRESH_BUFFER_MS = 60_000;
+type WecomTokenPurpose = "app" | "contact";
 
 interface WecomConfig {
   api_base_url?: string;
@@ -405,7 +406,7 @@ export class WecomClient {
   }
 
   isConfigured(): boolean {
-    return Boolean(this.corpId && this.getEffectiveSecret());
+    return Boolean(this.corpId && (this.corpSecret ?? this.contactSecret));
   }
 
   async getUser(userid: string): Promise<WecomDirectoryUser> {
@@ -413,7 +414,7 @@ export class WecomClient {
     if (!normalizedUserid) {
       throw new Error("WeCom userid cannot be empty");
     }
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken("contact");
     const url = new URL(`${this.apiBaseUrl}/cgi-bin/user/get`);
     url.searchParams.set("access_token", accessToken);
     url.searchParams.set("userid", normalizedUserid);
@@ -422,7 +423,7 @@ export class WecomClient {
   }
 
   async listDepartments(departmentId?: number): Promise<WecomDepartment[]> {
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken("contact");
     const url = new URL(`${this.apiBaseUrl}/cgi-bin/department/list`);
     url.searchParams.set("access_token", accessToken);
     if (departmentId !== undefined) {
@@ -442,7 +443,7 @@ export class WecomClient {
       includeInactive?: boolean;
     },
   ): Promise<WecomDirectoryUser[]> {
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken("contact");
     const url = new URL(`${this.apiBaseUrl}/cgi-bin/user/list`);
     url.searchParams.set("access_token", accessToken);
     url.searchParams.set("department_id", String(departmentId));
@@ -491,7 +492,7 @@ export class WecomClient {
   }
 
   async sendAppMessage(payload: Omit<WecomSendMessageRequest, "agentid"> & { agentid?: number }): Promise<WecomApiResponse> {
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken("app");
     const agentid = payload.agentid ?? this.agentId;
     if (!agentid || !Number.isFinite(agentid) || agentid <= 0) {
       throw new Error("Missing WeCom agent_id. Fill wecom.agent_id in config.json.");
@@ -561,7 +562,7 @@ export class WecomClient {
 
     const buffer = readFileSync(normalizedPath);
     const filename = path.basename(normalizedPath);
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken("app");
     const url = new URL(`${this.apiBaseUrl}/cgi-bin/media/upload`);
     url.searchParams.set("access_token", accessToken);
     url.searchParams.set("type", "file");
@@ -595,7 +596,7 @@ export class WecomClient {
       throw new Error("WeCom media_id cannot be empty");
     }
 
-    const accessToken = await this.getAccessToken();
+    const accessToken = await this.getAccessToken("app");
     const url = new URL(`${this.apiBaseUrl}/cgi-bin/media/get`);
     url.searchParams.set("access_token", accessToken);
     url.searchParams.set("media_id", normalizedMediaId);
@@ -624,13 +625,14 @@ export class WecomClient {
     };
   }
 
-  private async getAccessToken(): Promise<string> {
-    const cached = this.readTokenCache();
+  private async getAccessToken(purpose: WecomTokenPurpose): Promise<string> {
+    const effectiveSecret = this.getEffectiveSecret(purpose);
+    const cachePath = this.resolveTokenCachePath(purpose, effectiveSecret);
+    const cached = this.readTokenCache(cachePath);
     if (cached && cached.expiresAt > Date.now() + TOKEN_REFRESH_BUFFER_MS) {
       return cached.accessToken;
     }
 
-    const effectiveSecret = this.getEffectiveSecret();
     if (!this.corpId || !effectiveSecret) {
       throw new Error(
         "Missing WeCom credentials. Fill wecom.corp_id and wecom.contact_secret (or wecom.corp_secret) in config.json.",
@@ -657,22 +659,33 @@ export class WecomClient {
       accessToken,
       expiresAt: Date.now() + expiresIn * 1000,
     };
-    writeFileSync(TOKEN_CACHE_PATH, JSON.stringify(cache, null, 2), "utf8");
+    writeFileSync(cachePath, JSON.stringify(cache, null, 2), "utf8");
     return accessToken;
   }
 
-  private getEffectiveSecret(): string | undefined {
+  private getEffectiveSecret(purpose: WecomTokenPurpose): string | undefined {
+    if (purpose === "app") {
+      return this.corpSecret ?? this.contactSecret;
+    }
     return this.contactSecret ?? this.corpSecret;
   }
 
-  private readTokenCache(): WecomTokenCache | null {
-    if (!existsSync(TOKEN_CACHE_PATH)) {
+  private resolveTokenCachePath(purpose: WecomTokenPurpose, effectiveSecret: string | undefined): string {
+    const cacheKey = createHash("sha1")
+      .update(`${this.corpId ?? ""}:${purpose}:${effectiveSecret ?? ""}`)
+      .digest("hex")
+      .slice(0, 12);
+    return join(tmpdir(), `openclaw-zentao-wecom-token-${cacheKey}.json`);
+  }
+
+  private readTokenCache(cachePath: string): WecomTokenCache | null {
+    if (!existsSync(cachePath)) {
       return null;
     }
 
     try {
-      const raw = readFileSync(TOKEN_CACHE_PATH, "utf8");
-      const parsed = parseJson<WecomTokenCache>(raw, TOKEN_CACHE_PATH);
+      const raw = readFileSync(cachePath, "utf8");
+      const parsed = parseJson<WecomTokenCache>(raw, cachePath);
       if (!parsed.accessToken || !parsed.expiresAt) {
         return null;
       }

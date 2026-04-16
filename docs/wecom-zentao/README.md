@@ -12,6 +12,7 @@
 6. `11-notification-rules-mvp.yaml`
 7. `13-receiver-resolution-spec.md`
 8. `12-notification-templates-mvp.yaml`
+9. `scheduled-digest/README.md`
 
 ## 当前保留的核心文档
 
@@ -51,6 +52,10 @@
   - 接收人解析规则说明
   - 适合开发确认“该通知发给谁”的取值逻辑
 
+- `scheduled-digest/README.md`
+  - 定时汇总推送设计索引
+  - 适合评审“09:00 / 18:00 角色化短消息 + 延期风险提醒”方案
+
 - `../../tmp/notification-audit/通知链路记录.md`
   - 通知执行结果总览
   - 适合联调、排错、给团队看真实通知结果
@@ -78,6 +83,9 @@
 - 看运行事实：优先 `07-current-runtime-flow.md`
 - 看架构与方案：优先 `04-architecture.md`、`05-master-solution.md`
 - 看通知方案：优先 `11-notification-rules-mvp.yaml`、`13-receiver-resolution-spec.md`、`12-notification-templates-mvp.yaml`
+- 看定时摘要方案：优先 `scheduled-digest/README.md`
+  - 继续细看 `06-delivery-matrix.md`、`07-config-schema.md`、`08-implementation-breakdown.md`
+  - 准备落地时再看 `09-example-config.md`、`10-acceptance-checklist.md`、`11-runtime-scheduling.md`、`scheduled-digest.example.json`
 - 看通知执行结果：优先 `../../tmp/notification-audit/通知链路记录.md`
 - 看展示材料：优先 `09-wecom-ui-prototype-mvp.html`、`10-cross-role-swimlane.html`
 - 查历史草案：再进入 `archive/`
