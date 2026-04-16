@@ -4,6 +4,7 @@ export interface RequirementSource {
   rawText: string;
   titleCandidate: string;
   warnings: string[];
+  blockingWarnings?: string[];
 }
 
 export interface RunRequirementOptions {

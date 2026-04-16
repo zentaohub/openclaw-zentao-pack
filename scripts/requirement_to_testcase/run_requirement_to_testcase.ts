@@ -26,15 +26,32 @@ function materializePayload(payload: TestcasePayload): string {
   return payloadPath;
 }
 
-function buildCallbackReply(results: ExportResult[], sourceType: string): string {
+function formatWarnings(source: RequirementSource | null, key: "warnings" | "blockingWarnings"): string[] {
+  if (!source) {
+    return [];
+  }
+  const items = source[key];
+  return Array.isArray(items) ? items.map((item) => String(item).trim()).filter(Boolean) : [];
+}
+
+function buildCallbackReply(results: ExportResult[], sourceType: string, source: RequirementSource | null): string {
+  const warnings = formatWarnings(source, "warnings");
   const lines = [
     "已完成需求转测试用例导出。",
     `需求名称：${results[0]?.requirementName ?? "未命名需求"}`,
     `用例数量：${results[0]?.caseCount ?? 0}`,
     `导出格式：${results.map((item) => item.format).join(" + ")}`,
+  ];
+
+  if (warnings.length > 0) {
+    lines.push(`解析告警：${warnings.join("；")}`);
+  }
+
+  lines.push(
     "导出文件：",
     ...results.map((item) => `- ${item.outputFile}`),
-  ];
+  );
+
   for (const item of results) {
     lines.push(`MEDIA: ${item.outputFile}`);
   }
@@ -52,6 +69,7 @@ function buildCallbackParseSummary(source: RequirementSource | null): Record<str
     source_type: source.sourceType,
     source_name: source.sourceName,
     warnings: source.warnings,
+    blocking_warnings: source.blockingWarnings,
   };
 }
 
@@ -68,6 +86,21 @@ function printSuccess(results: ExportResult[]): void {
   }
 }
 
+function ensureSourceIsUsable(source: RequirementSource, options: Awaited<ReturnType<typeof parseRunOptions>>): void {
+  const blockingWarnings = formatWarnings(source, "blockingWarnings");
+  if (blockingWarnings.length > 0) {
+    throw new Error(blockingWarnings.join("；"));
+  }
+
+  if (options.inputFile && (!source.rawText || source.rawText.trim().length === 0)) {
+    throw new Error(
+      `输入文件 ${options.inputFile} 读取成功，但提取的正文内容为空。\n` +
+      `文件类型：${path.extname(options.inputFile)}\n` +
+      `告警信息：${source.warnings.join("; ") || "无"}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const options = await parseRunOptions();
   let payloadFile = options.payloadFile;
@@ -75,33 +108,17 @@ async function main(): Promise<void> {
 
   if (!payloadFile) {
     source = await readRequirementSource(options);
-    
-    // 验证 source 是否有效
+
     if (!source) {
       if (options.inputFile) {
         throw new Error(`无法读取输入文件：${options.inputFile}`);
       }
       throw new Error("未能从输入中提取需求内容");
     }
-    
-    // 如果有 inputFile 但 rawText 为空，抛出详细错误
-    if (options.inputFile && (!source.rawText || source.rawText.trim().length === 0)) {
-      throw new Error(
-        `输入文件 ${options.inputFile} 读取成功，但提取的正文内容为空。\n` +
-        `文件类型：${path.extname(options.inputFile)}\n` +
-        `告警信息：${source.warnings.join("; ") || "无"}`
-      );
-    }
-    
-    const payload = source
-      ? (await generatePayloadWithLlm(source, options.outputDir)) ?? buildPayloadFromSource(source, options.outputDir)
-      : buildPayloadFromSource({
-        sourceType: "text",
-        sourceName: "inline-text",
-        rawText: options.inputText ?? "",
-        titleCandidate: "临时需求说明",
-        warnings: [],
-      }, options.outputDir);
+
+    ensureSourceIsUsable(source, options);
+
+    const payload = (await generatePayloadWithLlm(source, options.outputDir)) ?? buildPayloadFromSource(source, options.outputDir);
     payloadFile = materializePayload(payload);
   }
 
@@ -114,7 +131,7 @@ async function main(): Promise<void> {
   }
 
   if (options.callbackMode) {
-    const replyText = buildCallbackReply(results, options.sourceType);
+    const replyText = buildCallbackReply(results, options.sourceType, source);
     process.stdout.write(`${JSON.stringify({
       ok: true,
       intent: "requirement-to-testcase",

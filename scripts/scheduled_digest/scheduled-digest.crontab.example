@@ -1,0 +1,18 @@
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin
+
+# Optional: point to your deployed repo directory.
+REPO_DIR=/srv/openclaw-zentao-pack
+
+# Optional: point to your deployed Zentao config.
+OPENCLAW_ZENTAO_CONFIG_PATH=/etc/openclaw/zentao.config.json
+
+# Optional: override digest config path or cron log path.
+# OPENCLAW_SCHEDULED_DIGEST_CONFIG_PATH=/srv/openclaw-zentao-pack/scripts/scheduled_digest/scheduled-digest.json
+# SCHEDULED_DIGEST_LOG_DIR=/srv/openclaw-zentao-pack/tmp/scheduled-digest-cron
+
+# Workday 09:00 morning digest
+0 9 * * 1-5 cd /srv/openclaw-zentao-pack && bash scripts/scheduled_digest/run_scheduled_digest_cron.sh morning
+
+# Workday 18:00 evening digest
+0 18 * * 1-5 cd /srv/openclaw-zentao-pack && bash scripts/scheduled_digest/run_scheduled_digest_cron.sh evening

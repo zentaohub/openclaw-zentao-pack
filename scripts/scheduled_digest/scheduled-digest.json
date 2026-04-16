@@ -1,0 +1,103 @@
+{
+  "enabled": true,
+  "timezone": "Asia/Shanghai",
+  "schedules": {
+    "morning": "0 9 * * 1-5",
+    "evening": "0 18 * * 1-5"
+  },
+  "strategy": {
+    "mergeMultiRoles": true,
+    "topN": 2,
+    "skipWhenEmpty": false,
+    "majorRiskImmediate": false,
+    "maxSections": 2,
+    "maxLinks": 2,
+    "titleMaxChars": 18
+  },
+  "riskRules": {
+    "highBug": {
+      "p1Hours": 24,
+      "p2Hours": 72
+    },
+    "bug": {
+      "overdueDays": 3
+    },
+    "task": {
+      "blockedOverdueAsP0": true
+    },
+    "project": {
+      "delayEscalationDays": [1, 3, 7]
+    },
+    "immediateCooldownHours": 8
+  },
+  "users": [
+    {
+      "enabled": true,
+      "userid": "lengleng",
+      "name": "lengleng",
+      "zentaoAccount": "lengleng",
+      "roles": ["dev"],
+      "scope": {
+        "products": [],
+        "projects": [],
+        "executions": []
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": false
+      }
+    },
+    {
+      "enabled": true,
+      "userid": "zqq",
+      "name": "zqq",
+      "zentaoAccount": "zqq",
+      "roles": ["qa"],
+      "scope": {
+        "products": [],
+        "projects": [],
+        "executions": []
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": false
+      }
+    },
+    {
+      "enabled": true,
+      "userid": "LengLeng",
+      "name": "鲜敏",
+      "zentaoAccount": "LengLeng",
+      "roles": ["manager"],
+      "scope": {
+        "products": [],
+        "projects": [3],
+        "executions": [4]
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": false
+      }
+    },
+    {
+      "enabled": true,
+      "userid": "lsym000002",
+      "name": "产品试点",
+      "zentaoAccount": "admin",
+      "roles": ["pm"],
+      "scope": {
+        "products": [2],
+        "projects": [],
+        "executions": []
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": false
+      }
+    }
+  ]
+}

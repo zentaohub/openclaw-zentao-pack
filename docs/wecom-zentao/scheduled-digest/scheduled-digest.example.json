@@ -1,0 +1,103 @@
+{
+  "enabled": true,
+  "timezone": "Asia/Shanghai",
+  "schedules": {
+    "morning": "0 9 * * 1-5",
+    "evening": "0 18 * * 1-5"
+  },
+  "strategy": {
+    "mergeMultiRoles": true,
+    "topN": 3,
+    "skipWhenEmpty": false,
+    "majorRiskImmediate": true,
+    "maxSections": 2,
+    "maxLinks": 2,
+    "titleMaxChars": 22
+  },
+  "riskRules": {
+    "highBug": {
+      "p1Hours": 24,
+      "p2Hours": 72
+    },
+    "bug": {
+      "overdueDays": 3
+    },
+    "task": {
+      "blockedOverdueAsP0": true
+    },
+    "project": {
+      "delayEscalationDays": [1, 3, 7]
+    },
+    "immediateCooldownHours": 8
+  },
+  "users": [
+    {
+      "enabled": true,
+      "userid": "pm-demo-userid",
+      "name": "产品示例",
+      "zentaoAccount": "pm_demo",
+      "roles": ["pm"],
+      "scope": {
+        "products": [1],
+        "projects": [],
+        "executions": []
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": true
+      }
+    },
+    {
+      "enabled": true,
+      "userid": "dev-demo-userid",
+      "name": "研发示例",
+      "zentaoAccount": "dev_demo",
+      "roles": ["dev"],
+      "scope": {
+        "products": [],
+        "projects": [],
+        "executions": []
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": true
+      }
+    },
+    {
+      "enabled": true,
+      "userid": "qa-demo-userid",
+      "name": "测试示例",
+      "zentaoAccount": "qa_demo",
+      "roles": ["qa"],
+      "scope": {
+        "products": [],
+        "projects": [],
+        "executions": [12]
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": true
+      }
+    },
+    {
+      "enabled": true,
+      "userid": "manager-demo-userid",
+      "name": "管理示例",
+      "zentaoAccount": "manager_demo",
+      "roles": ["manager"],
+      "scope": {
+        "products": [],
+        "projects": [3],
+        "executions": [12, 13]
+      },
+      "preferences": {
+        "receiveMorning": true,
+        "receiveEvening": true,
+        "receiveImmediate": true
+      }
+    }
+  ]
+}

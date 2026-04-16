@@ -9,3 +9,4 @@ config.json
 .vscode
 .tmp-agent-template-test/
 tmp/
+docs/overview/服务器变更日志.md
