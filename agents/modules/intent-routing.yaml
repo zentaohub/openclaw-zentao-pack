@@ -28,6 +28,7 @@ routes:
     triggers: ["查产品", "产品列表", "看产品", "有哪些产品"]
     script: query-products
     reply_template: query-products
+    optional_args: [keywords]
 
   - intent: query-product-overview
     triggers: ["产品概览", "产品详情"]

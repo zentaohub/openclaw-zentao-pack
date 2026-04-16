@@ -16,9 +16,14 @@ export const queryProductsTemplate: ReplyTemplate = {
   name: "query-products",
   render(context) {
     const items = asObjectArray(getNestedValue(context.result, "items"));
+    const keywords = asText(getNestedValue(context.result, "keywords"), "");
+    const title = keywords ? "产品搜索结果" : "产品列表";
+    const summary = keywords
+      ? `关键词：${keywords}，命中 ${asText(getNestedValue(context.result, "count"), "0")} 个`
+      : `共 ${asText(getNestedValue(context.result, "count"), "0")} 个`;
     return [
-      section("产品列表", `共 ${asText(getNestedValue(context.result, "count"), "0")} 个`),
-      ...renderListSection("明细", items, formatProductLine, "当前没有查到产品。"),
+      section(title, summary),
+      ...renderListSection("明细", items, formatProductLine, keywords ? `当前没有查到包含“${keywords}”的产品。` : "当前没有查到产品。"),
     ].join("\n");
   },
 };

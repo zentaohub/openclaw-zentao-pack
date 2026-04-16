@@ -512,11 +512,14 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
   }),
   "query-products": createAgentListTemplate({
     name: "query-products",
-    title: () => "产品列表",
+    title: (c) => getText(getPathValue(c.result, "keywords"), "") ? "产品搜索结果" : "产品列表",
     itemsPath: "items",
     countPath: "count",
     emptyText: "当前没有查询到产品。",
     metrics: (c) => [
+      ...(getText(getPathValue(c.result, "keywords"), "")
+        ? [{ keyname: "关键词", value: getText(getPathValue(c.result, "keywords"), "-") }]
+        : []),
       { keyname: "数量", value: getText(getPathValue(c.result, "count"), "0") },
       { keyname: "总量", value: getText(getPathValue(c.result, "total"), "0") },
     ],
