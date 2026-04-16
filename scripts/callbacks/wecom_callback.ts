@@ -225,13 +225,13 @@ function shouldBypassZentaoLlm(text: string): boolean {
 function buildGeneralAiAckPayload(text: string): { ackText: string; estimatedSeconds: number } {
   if (shouldPreferFastGeneralAi(text)) {
     return {
-      ackText: "收到，正在快速帮你看，预计 8 到 15 秒。",
+      ackText: "正在快速帮你看，预计 8 到 15 秒。",
       estimatedSeconds: 15,
     };
   }
 
   return {
-    ackText: "收到，正在处理中，预计 15 到 30 秒。",
+    ackText: "正在处理中，预计 15 到 30 秒。",
     estimatedSeconds: 30,
   };
 }
