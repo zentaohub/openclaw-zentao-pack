@@ -1,5 +1,5 @@
 export interface RequirementSource {
-  sourceType: "text" | "file";
+  sourceType: "text" | "file" | "url";
   sourceName: string;
   rawText: string;
   titleCandidate: string;
@@ -10,6 +10,7 @@ export interface RunRequirementOptions {
   payloadFile?: string;
   inputText?: string;
   inputFile?: string;
+  inputUrl?: string;
   format: "excel" | "xmind" | "both";
   outputDir?: string;
   callbackMode: boolean;

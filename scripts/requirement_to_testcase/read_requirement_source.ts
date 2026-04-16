@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { readDocx } from "./readers/read_docx";
+import { readOnlineDoc } from "./readers/read_online_doc";
 import { readTextFile } from "./readers/read_text_file";
 import type { RequirementSource, RunRequirementOptions } from "./types";
 
@@ -28,6 +29,10 @@ export async function readRequirementSource(options: RunRequirementOptions): Pro
       titleCandidate: cleanedText.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "临时需求说明",
       warnings: [],
     };
+  }
+
+  if (options.inputUrl) {
+    return readOnlineDoc({ url: options.inputUrl });
   }
 
   if (options.inputFile) {

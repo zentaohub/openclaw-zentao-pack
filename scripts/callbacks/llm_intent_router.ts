@@ -7,6 +7,7 @@ export interface IntentRouteLite {
   triggers: string[];
   requiredArgs: string[];
   requiredArgsAny: string[];
+  optionalArgs: string[];
 }
 
 export interface LlmIntentDecision extends JsonObject {
@@ -328,7 +329,8 @@ function buildRouteCatalog(routes: IntentRouteLite[]): string {
     .map((route) => {
       const required = route.requiredArgs.length > 0 ? route.requiredArgs.join(", ") : "无";
       const requiredAny = route.requiredArgsAny.length > 0 ? route.requiredArgsAny.join(" / ") : "无";
-      return `- intent=${route.intent}; triggers=${route.triggers.join(" | ")}; required_args=${required}; required_args_any=${requiredAny}`;
+      const optional = route.optionalArgs.length > 0 ? route.optionalArgs.join(", ") : "无";
+      return `- intent=${route.intent}; triggers=${route.triggers.join(" | ")}; required_args=${required}; required_args_any=${requiredAny}; optional_args=${optional}`;
     })
     .join("\n");
 }
@@ -354,9 +356,10 @@ function buildClassifierMessages(text: string, userid: string, routes: IntentRou
     "2. 测试准出、能不能提测、能否准出，优先映射到 query-test-exit-readiness。",
     "3. 上线检查、发布前检查，优先映射到 query-go-live-checklist。",
     "4. 我的任务、我的 bug 这类‘我的’命令默认对应当前 userid。",
-    "5. 除非非常确定，不要把普通闲聊识别成禅道请求；但对长业务句、结构化字段句、包含明确业务对象的口语指令，不要过度保守。",
-    "6. “帮我建一个产品，叫A，顺手把模块也建好：X、Y、Z，产品负责人、测试负责人、研发负责人都给张三” 这类输入，应识别为 create-product-with-modules。",
-    "7. “帮我看看 4 号迭代能不能提测”“这个版本现在可以上线吗” 这类口语业务句，若语义明确，应优先判为禅道请求。",
+    "5. 像‘列表里有没有某条记录’、‘查某个名称/标题’这类存在性或检索表达，如果候选 route 声明了 optional_args=keywords，应尽量把关键词抽到 args.keywords。",
+    "6. 除非非常确定，不要把普通闲聊识别成禅道请求；但对长业务句、结构化字段句、包含明确业务对象的口语指令，不要过度保守。",
+    "7. “帮我建一个产品，叫A，顺手把模块也建好：X、Y、Z，产品负责人、测试负责人、研发负责人都给张三” 这类输入，应识别为 create-product-with-modules。",
+    "8. “帮我看看 4 号迭代能不能提测”“这个版本现在可以上线吗” 这类口语业务句，若语义明确，应优先判为禅道请求。",
     "",
     "输出 JSON schema：",
     '{"is_zentao_request":true,"intent":"...","args":{"execution":"4"},"missing_args":[],"confidence":0.91,"reason":"..."}',

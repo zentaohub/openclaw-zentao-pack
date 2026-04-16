@@ -10,7 +10,6 @@ import {
   extractAttachmentInfo,
   extractText,
   extractUserid,
-  isDocxAttachmentPayload,
   parseJsonInput,
   type WecomMessagePayload,
 } from "../shared/wecom_payload";
@@ -22,8 +21,10 @@ import { resolveNamedEntityArgs, resolveNamedProductArg } from "./wecom_named_en
 import { buildPendingRouteSelectionPrompt, buildRouteSelectionReply, parseRouteSelectionIndex } from "./wecom_route_selection";
 import { WecomClient } from "../shared/wecom_client";
 import { dispatchInteractiveCallback } from "./wecom_interactive_dispatcher";
-import { appendRecentWecomMessage, listRecentWecomMessages, type WecomRecentMessageRecord } from "../shared/wecom_recent_message_window";
-import { clearPendingWecomOperation, loadPendingWecomOperation, savePendingWecomOperation } from "../shared/wecom_pending_operation_store";
+import {
+  dispatchRequirementToTestcase,
+  isRequirementToTestcaseRequest,
+} from "../requirement_to_testcase/requirement_dispatch";
 import {
   buildWecomContextualMissingHint,
   getWecomContextualCandidateSuggestions,
@@ -42,16 +43,6 @@ interface CallbackPayload extends JsonObject {
   body?: JsonValue;
 }
 
-interface ResolvedAttachmentInfo {
-  mediaId: string;
-  filename?: string;
-}
-
-interface AttachmentIntentCandidate {
-  intent: "requirement-to-testcase" | "import-tasks-from-excel";
-  attachments: ResolvedAttachmentInfo[];
-}
-
 const PACKAGE_ROOT = path.resolve(__dirname, "../../..");
 const IMPORT_TASK_TRIGGERS = [
   "导入任务",
@@ -60,32 +51,10 @@ const IMPORT_TASK_TRIGGERS = [
   "导任务",
 ];
 
-const REQUIREMENT_TO_TESTCASE_TRIGGERS = [
-  "生成测试用例",
-  "根据需求写测试用例",
-  "需求转测试用例",
-  "导出测试用例",
-  "根据文档生成测试用例",
-  "测试案例",
-];
-
-const SHORT_REQUIREMENT_COMMAND_HINTS = [
-  "生成测试用例",
-  "分析此需求文档生成测试用例",
-  "根据文档生成测试用例",
-  "导出测试用例",
-  "需求转测试用例",
-  "测试案例",
-];
-
 interface ImportTaskCommand {
   sourceUrl?: string;
   execution?: string;
   assignedTo?: string;
-}
-
-interface RequirementToTestcaseCommand {
-  format: "excel" | "xmind" | "both";
 }
 
 interface NpmRunner {
@@ -456,72 +425,7 @@ function sanitizeFilename(filename: string): string {
   return filename.replace(/[^A-Za-z0-9._-]+/g, "_");
 }
 
-function isRequirementToTestcaseRequest(text: string, payload: WecomMessagePayload): boolean {
-  if (REQUIREMENT_TO_TESTCASE_TRIGGERS.some((trigger) => text.includes(trigger))) {
-    return true;
-  }
-
-  return isDocxAttachmentPayload(payload);
-}
-
-function extractRequirementToTestcaseCommand(text: string): RequirementToTestcaseCommand {
-  const normalized = text.toLowerCase();
-  const wantsXmind = normalized.includes("xmind") || text.includes("脑图");
-  const wantsExcel = normalized.includes("excel") || normalized.includes("xlsx") || text.includes("表格");
-  return {
-    format: wantsXmind && wantsExcel ? "both" : wantsXmind ? "xmind" : "excel",
-  };
-}
-
-function isShortRequirementCommandWithoutDocument(text: string): boolean {
-  const normalized = text
-    .trim()
-    .toLowerCase()
-    .replace(/[，。！？,.!?:：；;（）()【】\[\]{}<>《》"'“”‘’]/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-
-  if (!normalized) {
-    return false;
-  }
-
-  if (normalized.length > 30) {
-    return false;
-  }
-
-  return SHORT_REQUIREMENT_COMMAND_HINTS.some((hint) => {
-    const normalizedHint = hint
-      .trim()
-      .toLowerCase()
-      .replace(/[，。！？,.!?:：；;（）()【】\[\]{}<>《》"'“”‘’]/gu, " ")
-      .replace(/\s+/gu, " ")
-      .trim();
-    return normalized === normalizedHint;
-  });
-}
-
-function isImportTaskRequest(text: string, payload: WecomMessagePayload): boolean {
-  if (IMPORT_TASK_TRIGGERS.some((trigger) => text.includes(trigger))) {
-    return true;
-  }
-
-  return extractAttachmentInfo(payload) !== null;
-}
-
-function isRequirementIntentText(text: string): boolean {
-  return REQUIREMENT_TO_TESTCASE_TRIGGERS.some((trigger) => text.includes(trigger));
-}
-
-function isImportIntentText(text: string): boolean {
-  return IMPORT_TASK_TRIGGERS.some((trigger) => text.includes(trigger));
-}
-
-function isExcelLikeAttachment(filename: string | undefined): boolean {
-  const normalized = String(filename ?? "").trim().toLowerCase();
-  return normalized.endsWith(".xlsx") || normalized.endsWith(".xls") || normalized.endsWith(".csv");
-}
-
-function getRouteAttachment(payload: WecomMessagePayload): ResolvedAttachmentInfo | null {
+function getRouteAttachment(payload: WecomMessagePayload): { mediaId: string; filename?: string } | null {
   const routeArgs = payload.route_args && typeof payload.route_args === "object" && !Array.isArray(payload.route_args)
     ? payload.route_args as Record<string, unknown>
     : undefined;
@@ -534,84 +438,12 @@ function getRouteAttachment(payload: WecomMessagePayload): ResolvedAttachmentInf
   };
 }
 
-function buildAttachmentAwarePayload(payload: WecomMessagePayload, attachment: ResolvedAttachmentInfo): CallbackPayload {
-  return {
-    ...payload,
-    route_args: {
-      ...(payload.route_args && typeof payload.route_args === "object" && !Array.isArray(payload.route_args)
-        ? payload.route_args as Record<string, unknown>
-        : {}),
-      mediaId: attachment.mediaId,
-      filename: attachment.filename,
-    },
-  } satisfies CallbackPayload;
-}
-
-function collectCandidateAttachments(records: WecomRecentMessageRecord[], intent: AttachmentIntentCandidate["intent"]): ResolvedAttachmentInfo[] {
-  const filtered = records
-    .filter((record) => record.type === "file" && record.attachment?.mediaId)
-    .map((record) => record.attachment as ResolvedAttachmentInfo)
-    .filter((attachment) => intent === "requirement-to-testcase"
-      ? String(attachment.filename ?? "").trim().toLowerCase().endsWith(".docx")
-      : isExcelLikeAttachment(attachment.filename));
-
-  const seen = new Set<string>();
-  return filtered.filter((attachment) => {
-    if (seen.has(attachment.mediaId)) {
-      return false;
-    }
-    seen.add(attachment.mediaId);
+function isImportTaskRequest(text: string, payload: WecomMessagePayload): boolean {
+  if (IMPORT_TASK_TRIGGERS.some((trigger) => text.includes(trigger))) {
     return true;
-  });
-}
-
-function resolveAttachmentIntentCandidate(userid: string, text: string): AttachmentIntentCandidate | null {
-  const trimmedText = text.trim();
-  if (!trimmedText) {
-    return null;
   }
 
-  const recentMessages = listRecentWecomMessages(userid);
-  if (recentMessages.length === 0) {
-    return null;
-  }
-
-  if (isRequirementIntentText(trimmedText)) {
-    const attachments = collectCandidateAttachments(recentMessages, "requirement-to-testcase");
-    return attachments.length > 0 ? { intent: "requirement-to-testcase", attachments } : null;
-  }
-
-  if (isImportIntentText(trimmedText)) {
-    const attachments = collectCandidateAttachments(recentMessages, "import-tasks-from-excel");
-    return attachments.length > 0 ? { intent: "import-tasks-from-excel", attachments } : null;
-  }
-
-  return null;
-}
-
-function buildPendingConfirmationReply(operationText: string, attachment: ResolvedAttachmentInfo): string {
-  return [
-    "已收到附件：",
-    `1. ${attachment.filename ?? attachment.mediaId}`,
-    "",
-    `你刚才的指令是：${operationText}`,
-    "请回复以下任一内容继续：",
-    "- 确认",
-    "- 取消",
-    "- 改为生成xmind",
-  ].join("\n");
-}
-
-function buildPendingSelectionReply(operationText: string, attachments: ResolvedAttachmentInfo[]): string {
-  return [
-    "已收到多个附件，请确认要处理哪个文件：",
-    ...attachments.map((attachment, index) => `${index + 1}. ${attachment.filename ?? attachment.mediaId}`),
-    "",
-    `你刚才的指令是：${operationText}`,
-    "请回复：",
-    ...attachments.map((_, index) => `- 处理第${index + 1}个`),
-    "- 取消",
-  ].join("\n");
+  return extractAttachmentInfo(payload) !== null;
 }
 
 async function resolvePendingRouteSelectionReply(
@@ -684,119 +516,9 @@ async function resolvePendingRouteSelectionReply(
   );
 }
 
-function buildPendingExpiredReply(): JsonObject {
-  return {
-    ok: true,
-    reply_text: "上一条待确认的附件操作已过期，请重新发送附件和处理指令。",
-  } satisfies JsonObject;
-}
-
-function parsePendingSelection(text: string, maxCount: number): number | null {
-  const normalized = text.trim();
-  const match = normalized.match(/第\s*(\d+)\s*个/u) ?? normalized.match(/处理\s*(\d+)/u);
-  if (!match?.[1]) {
-    return null;
-  }
-  const index = Number.parseInt(match[1], 10);
-  if (!Number.isFinite(index) || index < 1 || index > maxCount) {
-    return null;
-  }
-  return index - 1;
-}
-
-function isConfirmReply(text: string): boolean {
-  const normalized = text.trim();
-  return ["确认", "好的", "开始", "继续"].includes(normalized);
-}
-
 function isCancelReply(text: string): boolean {
   const normalized = text.trim();
   return ["取消", "不用了", "结束"].includes(normalized);
-}
-
-async function resolvePendingOperationReply(text: string, userid: string, payload: CallbackPayload): Promise<JsonObject | null> {
-  const pending = loadPendingWecomOperation(userid);
-  if (!pending) {
-    return null;
-  }
-
-  const trimmedText = text.trim();
-  if (!trimmedText) {
-    clearPendingWecomOperation(userid);
-    return buildPendingExpiredReply();
-  }
-
-  if (isCancelReply(trimmedText)) {
-    clearPendingWecomOperation(userid);
-    return {
-      ok: true,
-      userid,
-      intent: pending.intent,
-      reply_text: "已取消本次附件处理请求。",
-    } satisfies JsonObject;
-  }
-
-  if (pending.status === "awaiting_confirmation") {
-    if (!isConfirmReply(trimmedText) && !trimmedText.includes("xmind")) {
-      return {
-        ok: true,
-        userid,
-        intent: pending.intent,
-        reply_text: buildPendingConfirmationReply(pending.originalText, pending.attachments[0]),
-      } satisfies JsonObject;
-    }
-
-    clearPendingWecomOperation(userid);
-    const attachment = pending.attachments[0];
-    const effectiveText = trimmedText.includes("xmind") ? trimmedText : pending.originalText;
-    const nextPayload = buildAttachmentAwarePayload(payload, attachment);
-    return pending.intent === "requirement-to-testcase"
-      ? dispatchRequirementToTestcase(effectiveText, userid, nextPayload)
-      : dispatchImportTask(effectiveText, userid, nextPayload);
-  }
-
-  const selectedIndex = parsePendingSelection(trimmedText, pending.attachments.length);
-  if (selectedIndex === null) {
-    return {
-      ok: true,
-      userid,
-      intent: pending.intent,
-      reply_text: buildPendingSelectionReply(pending.originalText, pending.attachments),
-    } satisfies JsonObject;
-  }
-
-  clearPendingWecomOperation(userid);
-  const attachment = pending.attachments[selectedIndex];
-  const nextPayload = buildAttachmentAwarePayload(payload, attachment);
-  return pending.intent === "requirement-to-testcase"
-    ? dispatchRequirementToTestcase(pending.originalText, userid, nextPayload)
-    : dispatchImportTask(pending.originalText, userid, nextPayload);
-}
-
-function buildAttachmentIntentReply(userid: string, text: string): JsonObject | null {
-  const candidate = resolveAttachmentIntentCandidate(userid, text);
-  if (!candidate) {
-    return null;
-  }
-
-  const status = candidate.attachments.length === 1 ? "awaiting_confirmation" : "awaiting_selection";
-  savePendingWecomOperation({
-    userid,
-    intent: candidate.intent,
-    originalText: text.trim(),
-    attachments: candidate.attachments,
-    status,
-  });
-
-  return {
-    ok: true,
-    userid,
-    intent: candidate.intent,
-    pending_operation: status,
-    reply_text: candidate.attachments.length === 1
-      ? buildPendingConfirmationReply(text.trim(), candidate.attachments[0])
-      : buildPendingSelectionReply(text.trim(), candidate.attachments),
-  } satisfies JsonObject;
 }
 
 function extractImportTaskCommand(text: string): ImportTaskCommand {
@@ -893,130 +615,6 @@ async function dispatchImportTask(text: string, userid: string, payload: WecomMe
         unlinkSync(tempFilePath);
       } catch {
         // ignore cleanup failure for temp import file
-      }
-    }
-  }
-}
-
-async function dispatchRequirementToTestcase(text: string, userid: string, payload: WecomMessagePayload): Promise<JsonObject> {
-  const command = extractRequirementToTestcaseCommand(text);
-  const attachment = extractAttachmentInfo(payload) ?? getRouteAttachment(payload);
-  const trimmedText = text.trim();
-
-  if (!attachment && !trimmedText) {
-    return {
-      ok: true,
-      userid,
-      intent: "requirement-to-testcase",
-      missing_args: [".docx 附件或需求文本"],
-      reply_text: [
-        "已识别为需求转测试用例请求。",
-        "请发送 .docx 需求文档，或直接粘贴需求文本后重试。",
-        "示例：上传 .docx 后发送“生成测试用例并导出excel”",
-      ].join("\n"),
-    };
-  }
-
-  if (!attachment && isShortRequirementCommandWithoutDocument(trimmedText)) {
-    return {
-      ok: true,
-      userid,
-      intent: "requirement-to-testcase",
-      missing_args: [".docx 附件或需求正文"],
-      reply_text: [
-        "已识别为需求转测试用例请求，但当前未检测到可读取的 .docx 附件内容。",
-        "请重新上传需求文档后重试，或直接粘贴需求正文。",
-        "仅发送“生成测试用例”这类短指令时，系统不会再把指令本身当成需求正文处理。",
-      ].join("\n"),
-    };
-  }
-
-  let tempFilePath: string | null = null;
-  try {
-    const cliArgs = [
-      "--callback-mode",
-      "--source-type",
-      detectWecomMessageSource(payload),
-      "--format",
-      command.format,
-    ];
-
-    if (attachment) {
-      if (!attachment.filename || !attachment.filename.trim().toLowerCase().endsWith(".docx")) {
-        return {
-          ok: true,
-          userid,
-          intent: "requirement-to-testcase",
-          reply_text: "当前仅支持通过企业微信自建应用上传 .docx 需求文档。",
-        };
-      }
-
-      const wecomClient = new WecomClient();
-      const mediaFile = await wecomClient.downloadMedia(attachment.mediaId, attachment.filename);
-      const filename = sanitizeFilename(mediaFile.filename || `${attachment.mediaId}.docx`);
-      tempFilePath = path.join(tmpdir(), `openclaw-zentao-requirement-${Date.now()}-${filename}`);
-      writeFileSync(tempFilePath, mediaFile.buffer);
-      
-      // 验证临时文件是否创建成功
-      if (!existsSync(tempFilePath)) {
-        throw new Error(`临时文件创建失败：${tempFilePath}`);
-      }
-      const tempStats = statSync(tempFilePath);
-      if (tempStats.size === 0) {
-        throw new Error(`临时文件为空：${tempFilePath}`);
-      }
-
-      cliArgs.push("--input-file", tempFilePath);
-    } else {
-      cliArgs.push("--input-text", trimmedText);
-    }
-
-    const output = execNpmScript("requirement-to-testcase", cliArgs);
-    const result = parseJsonInput(output, "npm run requirement-to-testcase") as JsonObject;
-    const outputFiles = Array.isArray(result.output_files)
-      ? result.output_files.map((item) => String(item)).filter(Boolean)
-      : [];
-
-    if (outputFiles.length > 0) {
-      const wecomClient = new WecomClient();
-      for (const filePath of outputFiles) {
-        const uploaded = await wecomClient.uploadTemporaryMedia(filePath);
-        await wecomClient.sendFileToUsers([userid], uploaded.media_id);
-      }
-    }
-
-    return {
-      ...result,
-      ok: result.ok === undefined ? true : result.ok,
-      userid,
-      intent: "requirement-to-testcase",
-      route_script: "requirement-to-testcase",
-      route_args: {
-        format: command.format,
-        mediaId: attachment?.mediaId,
-        filename: attachment?.filename,
-      },
-      reply_text:
-        typeof result.reply_text === "string" && result.reply_text.trim()
-          ? result.reply_text
-          : "需求转测试用例执行完成。",
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      ok: false,
-      userid,
-      intent: "requirement-to-testcase",
-      route_script: "requirement-to-testcase",
-      error: message,
-      reply_text: `已识别为需求转测试用例请求，但执行失败：${message}`,
-    };
-  } finally {
-    if (tempFilePath) {
-      try {
-        unlinkSync(tempFilePath);
-      } catch {
-        // ignore cleanup failure for temp requirement file
       }
     }
   }
@@ -1292,22 +890,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  const inboundAttachment = extractAttachmentInfo(payload);
-  if (inboundAttachment) {
-    appendRecentWecomMessage({
-      userid,
-      type: "file",
-      attachment: inboundAttachment,
-    });
-  }
-  if (text.trim()) {
-    appendRecentWecomMessage({
-      userid,
-      type: "text",
-      text: text.trim(),
-    });
-  }
-
   const presetReply = findPresetReply(text);
   if (presetReply) {
     printJson(maybeWrapReplyAsTemplateCard({
@@ -1324,18 +906,6 @@ async function main(): Promise<void> {
     }, replyFormat, userid));
     return;
   }
-
-
-  const attachmentIntentReply = buildAttachmentIntentReply(userid, text);
-  if (attachmentIntentReply) {
-    printJson(maybeWrapReplyAsTemplateCard({
-      ...attachmentIntentReply,
-      message_source: sourceType,
-      route_source: "wecom_attachment_window",
-    }, replyFormat, userid));
-    return;
-  }
-
   if (isRequirementToTestcaseRequest(text, payload)) {
     const result = await dispatchRequirementToTestcase(text, userid, payload);
     printJson(maybeWrapReplyAsTemplateCard({

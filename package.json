@@ -68,7 +68,10 @@
         "query-closure-items": "npm run build && node dist/scripts/queries/query_closure_items.js",
         "preview-agent-template": "npm run build && node dist/scripts/tests/preview_agent_template.js",
         "preview-agent-template-all": "npm run build && node dist/scripts/tests/preview_agent_template.js --all-samples",
-        "test-wecom-agent-card": "node scripts/tests/send_wecom_agent_card_test.mjs"
+        "test-wecom-agent-card": "node scripts/tests/send_wecom_agent_card_test.mjs",
+        "log-test-issue": "npm run build && node dist/scripts/maintenance/log_test_issue.js",
+        "log-observed-issue": "npm run build && node dist/scripts/maintenance/log_test_issue.js",
+        "test-with-sop-log": "npm run build && node dist/scripts/maintenance/run_test_with_sop_log.js"
     },
     "dependencies": {
         "exceljs": "^4.4.0",

@@ -9,6 +9,7 @@ export async function parseRunOptions(): Promise<RunRequirementOptions> {
       "payload-file": { type: "string" },
       "input-text": { type: "string" },
       "input-file": { type: "string" },
+      "input-url": { type: "string" },
       format: { type: "string", default: "excel" },
       "output-dir": { type: "string" },
       "callback-mode": { type: "boolean", default: false },
@@ -41,6 +42,16 @@ export async function parseRunOptions(): Promise<RunRequirementOptions> {
     return { inputFile, format, outputDir, callbackMode, sourceType };
   }
 
+  if (typeof values["input-url"] === "string" && values["input-url"].trim()) {
+    return {
+      inputUrl: values["input-url"].trim(),
+      format,
+      outputDir,
+      callbackMode,
+      sourceType,
+    };
+  }
+
   if (typeof values["input-text"] === "string" && values["input-text"].trim()) {
     return {
       inputText: values["input-text"].trim(),
@@ -51,5 +62,5 @@ export async function parseRunOptions(): Promise<RunRequirementOptions> {
     };
   }
 
-  throw new Error("Missing --payload-file, --input-file, or --input-text");
+  throw new Error("Missing --payload-file, --input-file, --input-url, or --input-text");
 }
