@@ -12,6 +12,38 @@ function extractItems(value: JsonValue | undefined): JsonObject[] {
   return [];
 }
 
+function toPositiveNumber(value: JsonValue | undefined): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function matchesProduct(story: JsonObject, productId: number): boolean {
+  return toPositiveNumber(story.product) === productId;
+}
+
+function extractOverviewStoryCount(product: JsonObject | null): number {
+  if (!product) {
+    return 0;
+  }
+
+  const directCount = toPositiveNumber(product.totalStories);
+  if (directCount !== null) {
+    return directCount;
+  }
+
+  const groupedStories = typeof product.stories === "object" && product.stories !== null && !Array.isArray(product.stories)
+    ? product.stories
+    : null;
+  if (!groupedStories) {
+    return 0;
+  }
+
+  return Object.values(groupedStories).reduce<number>((sum, value) => {
+    const current = Number(value);
+    return sum + (Number.isFinite(current) && current > 0 ? current : 0);
+  }, 0);
+}
+
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -27,15 +59,43 @@ async function main(): Promise<void> {
   if (!Number.isFinite(productId) || productId <= 0) throw new Error(`Invalid --product value: ${values.product}`);
 
   const client = new ZentaoClient({ userid: values.userid });
-  const data = await client.getWebJsonViewData(`/story-browse-${productId}-${values.browse}-0-id_desc-0-100-1.json`);
-  const items = extractItems(data.stories).sort((left, right) => Number(right.id ?? 0) - Number(left.id ?? 0));
+  const [browseData, productViewData] = await Promise.all([
+    client.getWebJsonViewData(`/story-browse-${productId}-${values.browse}-0-id_desc-0-100-1.json`),
+    client.getWebJsonViewData(`/product-view-${productId}.json`),
+  ]);
+  const product = typeof productViewData.product === "object" && productViewData.product !== null && !Array.isArray(productViewData.product)
+    ? productViewData.product as JsonObject
+    : null;
+
+  const browseProductId = toPositiveNumber(browseData.productID) ?? toPositiveNumber(browseData.product);
+  const browseItems = extractItems(browseData.stories).filter((story) => matchesProduct(story, productId));
+  const overviewStoryCount = extractOverviewStoryCount(product);
+  const shouldFallbackToAllStories = (browseProductId !== null && browseProductId !== productId)
+    || (browseItems.length === 0 && overviewStoryCount > 0);
+
+  let items = browseItems;
+  let source = "product-browse";
+
+  if (shouldFallbackToAllStories) {
+    const allStoriesData = await client.getWebJsonViewData("/my-work-story-all.json");
+    const fallbackItems = extractItems(allStoriesData.stories).filter((story) => matchesProduct(story, productId));
+    if (fallbackItems.length > 0 || browseItems.length === 0) {
+      items = fallbackItems;
+      source = "my-work-story-all";
+    }
+  }
+
+  items = items.sort((left, right) => Number(right.id ?? 0) - Number(left.id ?? 0));
 
   printJson({
     ok: true,
     type: "product-stories",
     product: productId,
     browse: values.browse,
-    title: data.title ?? null,
+    title: productViewData.title ?? browseData.title ?? null,
+    source,
+    fallback_used: source !== "product-browse",
+    overview_story_count: overviewStoryCount,
     count: items.length,
     items: summarizeList(items, ["id", "title", "status", "stage", "category", "pri", "estimate", "assignedTo", "openedBy", "reviewedBy"]),
   });
@@ -46,4 +106,3 @@ void main().catch((error) => {
 `);
   process.exit(1);
 });
-
