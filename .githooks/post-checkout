@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[[ -n "${ROOT//[[:space:]]/}" ]] || exit 0
+
+exec "$ROOT/scripts/maintenance/handle_git_update_hook.sh" post-checkout "${1:-}" "${2:-}" "${3:-0}"
