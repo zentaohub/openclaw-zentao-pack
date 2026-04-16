@@ -267,3 +267,77 @@
 - 备注：
   - 第一轮目标不是重写整套路由，而是先做轻量动作裁决、基础打分思路和可观测性
   - 可优先复用交接包 `2026-04-16-企微创建需求误分流修复.md` 中的 backlog 候选与下一步设计
+
+## [todo][B-012] 企微自建应用混合 payload 的 agent/bot 识别回归固化
+
+- 类型：validation
+- 价值：避免企业微信自建应用 callback 因兼容字段混合再次被误判成 `bot`，导致回复卡片链路和来源文案退化
+- 风险：低
+- 触发信号：本轮“有哪些模块”排查中，自建应用 payload 同时带有 `MsgType/AgentID` 和 `msgtype`，旧逻辑先按 bot 字段判定，导致消息源被误识别为 `bot`
+- 最小动作：补一组标准化消息源回归样本，覆盖 `agent payload / bot payload / 混合 payload` 三类输入，并明确要求消息源识别先判 `agent` 再判 `bot`
+- 验收标准：
+  - 存在可直接运行的消息源回归脚本
+  - 混合 payload 稳定识别为 `agent`
+  - 纯 bot payload 仍稳定识别为 `bot`
+  - 后续修改 `wecom_payload` 或 callback 兼容层时，能第一时间发现消息源回归
+- 相关位置：
+  - `scripts/shared/wecom_payload.ts`
+  - `scripts/tests/wecom_message_source_regression.ts`
+  - `scripts/callbacks/wecom_callback.ts`
+- 备注：
+  - 这项优先级高于统一文案，因为根因是消息源误识别，不是卡片文案本身
+
+## [todo][B-013] 高频业务短句的关键词白名单与自然表达补齐
+
+- 类型：routing
+- 价值：降低“模块 / 版本 / 迭代 / 测试单”等真实业务短句被开放问答或 short bypass 误伤的概率
+- 风险：低
+- 触发信号：本轮“有哪些模块”因业务关键词缺少“模块”且 bypass 执行过早，被错误分流到 `general_ai`
+- 最小动作：盘点高频对象短句，补齐 `ZENTAO_BUSINESS_KEYWORDS` 与 `intent-routing.yaml` 中的自然表达触发词，并为每类至少加一条回归
+- 验收标准：
+  - 高频对象词至少覆盖：模块、版本、迭代、测试单、执行、团队
+  - 每类对象至少有一条“上下文短句查询”回归样本
+  - 相关短句不再被 short bypass 抢走
+- 相关位置：
+  - `scripts/callbacks/wecom_callback.ts`
+  - `agents/modules/intent-routing.yaml`
+  - `scripts/tests/`
+- 备注：
+  - 先做高频短句补齐，不急着扩大到所有低频表达
+
+## [todo][B-014] callback 决策链结构化日志补齐
+
+- 类型：risk
+- 价值：以后再遇到“为什么走了 bot / general_ai / 某个 intent”时，可以直接看决策链，而不是完全靠人工复盘源码
+- 风险：中
+- 触发信号：本轮排查需要手工串联消息源识别、semantic/yaml 命中、short bypass、fallback 与 template_card 包装，定位成本偏高
+- 最小动作：在 callback 主链路增加最小结构化日志字段，至少记录消息源、route_source、semantic_reason、是否 bypass、fallback_reason、最终 intent
+- 验收标准：
+  - 能从日志快速判断“为什么走了这个链路”
+  - 至少能区分：agent/bot/unknown、semantic/yaml/llm/general_ai、short_input_bypass/open_question_non_zentao
+  - 不需要重新读完整源码，也能完成一次常见分流故障定位
+- 相关位置：
+  - `scripts/callbacks/wecom_callback.ts`
+  - `scripts/callbacks/wecom_interactive_dispatcher.ts`
+  - `docs/integration/WECOM_CALLBACK.md`
+- 备注：
+  - 第一轮优先做结构化关键字段，不要求先接完整 observability 平台
+
+## [todo][B-015] bot 兜底卡片包装场景盘点与边界收敛
+
+- 类型：risk
+- 价值：明确哪些回复允许走 bot 侧兜底包装，哪些回复必须保持 agent template 原样输出，减少“看起来像卡片但其实链路错了”的隐性问题
+- 风险：中
+- 触发信号：本轮问题中，bot 侧兜底包装把 `source.desc` 固定成“禅道助手”，放大了消息源误识别的用户感知
+- 最小动作：盘点当前所有 `maybeWrapReplyAsTemplateCard` 一类 bot 包装场景，标出保留、收敛、禁止覆盖的边界，并写清用途
+- 验收标准：
+  - 有一份可回读的 bot/agent 卡片包装边界说明
+  - 能回答“哪些场景允许 bot 包装，哪些场景必须走 agent template”
+  - 避免后续再把链路问题误看成单纯文案问题
+- 相关位置：
+  - `scripts/callbacks/wecom_callback.ts`
+  - `scripts/callbacks/wecom_reply_formatter.ts`
+  - `scripts/replies/agent_templates/`
+  - `docs/overview/`
+- 备注：
+  - 这项不是要求统一文案，而是先明确边界和默认策略
