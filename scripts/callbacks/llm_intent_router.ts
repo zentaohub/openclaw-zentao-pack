@@ -27,6 +27,10 @@ interface RuntimeProviderConfig {
 
 const OPENAI_YAML_PATH = path.resolve(__dirname, "../../../agents/openai.yaml");
 const OPENCLAW_RUNTIME_PATH = "/root/.openclaw/private/openclaw.runtime.json";
+const WECOM_LLM_CLASSIFIER_TIMEOUT_MS = Number.parseInt(
+  process.env.WECOM_LLM_CLASSIFIER_TIMEOUT_MS ?? "8000",
+  10,
+);
 const NON_ZENTAO_FAST_REPLIES = [
   "你是谁",
   "帮助",
@@ -111,6 +115,36 @@ function isObviousNonZentao(text: string): boolean {
   }
 
   return normalized.length <= 24 && OPEN_QUESTION_HINTS.some((hint) => normalized.includes(hint));
+}
+
+function isLikelyMeaninglessShortInput(text: string): boolean {
+  const normalized = normalizeClassifierText(text);
+  if (!normalized || normalized.length > 12) {
+    return false;
+  }
+
+  if (ZENTAO_BUSINESS_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return false;
+  }
+
+  if (OPEN_QUESTION_HINTS.some((hint) => normalized.includes(hint))) {
+    return false;
+  }
+
+  if (/^\d+$/u.test(normalized)) {
+    return true;
+  }
+
+  if (/^[a-z]+$/iu.test(normalized) && normalized.length <= 6) {
+    return true;
+  }
+
+  if (/^[\u4e00-\u9fa5]+$/u.test(normalized) && normalized.length <= 6) {
+    const uniqueChars = new Set(normalized.split(""));
+    return uniqueChars.size >= Math.max(2, normalized.length - 1);
+  }
+
+  return false;
 }
 
 function loadAgentPrompt(): string {
@@ -215,12 +249,16 @@ function buildClassifierMessages(text: string, userid: string, routes: IntentRou
 }
 
 async function requestJson(url: string, apiKey: string, body: JsonObject): Promise<JsonObject> {
+  const timeoutMs = Number.isFinite(WECOM_LLM_CLASSIFIER_TIMEOUT_MS) && WECOM_LLM_CLASSIFIER_TIMEOUT_MS > 0
+    ? WECOM_LLM_CLASSIFIER_TIMEOUT_MS
+    : 8000;
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
+    signal: AbortSignal.timeout(timeoutMs),
     body: JSON.stringify(body),
   });
 
@@ -385,6 +423,14 @@ export async function classifyWecomIntentWithLlm(input: {
       is_zentao_request: false,
       confidence: 0.99,
       reason: "obvious_non_zentao_short_input",
+    };
+  }
+
+  if (isLikelyMeaninglessShortInput(input.text)) {
+    return {
+      is_zentao_request: false,
+      confidence: 0.99,
+      reason: "meaningless_short_input",
     };
   }
 

@@ -213,6 +213,36 @@ function shouldPreferFastGeneralAi(text: string): boolean {
   return normalized.length <= 24 && OPEN_QUESTION_HINTS.some((hint) => normalized.includes(hint));
 }
 
+function shouldBypassZentaoLlm(text: string): boolean {
+  const normalized = normalizeWecomText(text);
+  if (!normalized || normalized.length > 12) {
+    return false;
+  }
+
+  if (shouldPreferFastGeneralAi(normalized)) {
+    return true;
+  }
+
+  if (ZENTAO_BUSINESS_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return false;
+  }
+
+  if (/^\d+$/u.test(normalized)) {
+    return true;
+  }
+
+  if (/^[a-z]+$/iu.test(normalized) && normalized.length <= 6) {
+    return true;
+  }
+
+  if (/^[\u4e00-\u9fa5]+$/u.test(normalized) && normalized.length <= 6) {
+    const uniqueChars = new Set(normalized.split(""));
+    return uniqueChars.size >= Math.max(2, normalized.length - 1);
+  }
+
+  return false;
+}
+
 function buildGeneralAiAckPayload(text: string): { ackText: string; estimatedSeconds: number } {
   if (shouldPreferFastGeneralAi(text)) {
     return {
@@ -1129,6 +1159,25 @@ async function main(): Promise<void> {
   }
 
   const valuesRecord = values as Record<string, string | boolean | undefined>;
+  if (shouldBypassZentaoLlm(text)) {
+    const generalAiAck = buildGeneralAiAckPayload(text);
+    printJson(maybeWrapReplyAsTemplateCard({
+      ok: true,
+      userid,
+      message_source: sourceType,
+      intent: "non_zentao_or_unknown",
+      input_text: text,
+      reply_text: buildRouteHelpText(routes),
+      should_fallback_to_general_ai: true,
+      fallback_ack_text: generalAiAck.ackText,
+      fallback_estimated_seconds: generalAiAck.estimatedSeconds,
+      preferred_general_agent: "fast-general-ai",
+      skip_zentao_llm_classification: true,
+      fallback_reason: "short_input_bypass",
+      route_source: "short_input_bypass",
+    }, replyFormat, userid));
+    return;
+  }
   let llmDecision: LlmIntentDecision | null = null;
   const match = findRouteMatch(text, routes);
   if (match) {
@@ -1170,31 +1219,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  llmDecision = await classifyWecomIntentWithLlm({
-    text,
-    userid,
-    routes,
-  });
-
-  if (llmDecision?.is_zentao_request && typeof llmDecision.intent === "string" && llmDecision.intent.trim()) {
-    const route = findRouteByIntent(llmDecision.intent, routes);
-    if (route) {
-      const llmArgs = normalizeRouteArgs(llmDecision.args as JsonObject | undefined);
-      const mergedArgs = {
-        ...extractRouteArgs(text, route, userid),
-        ...llmArgs,
-      };
-      const result = await dispatchRoute({ route, trigger: "llm" }, text, userid, payload, valuesRecord, mergedArgs);
-      printJson(maybeWrapReplyAsTemplateCard({
-        ...result,
-        message_source: sourceType,
-        route_source: "llm",
-        llm_decision: llmDecision satisfies LlmIntentDecision,
-      }, replyFormat, userid));
-      return;
-    }
-  }
-
   const generalAiAck = buildGeneralAiAckPayload(text);
 
   printJson(maybeWrapReplyAsTemplateCard({
@@ -1207,13 +1231,10 @@ async function main(): Promise<void> {
     should_fallback_to_general_ai: true,
     fallback_ack_text: generalAiAck.ackText,
     fallback_estimated_seconds: generalAiAck.estimatedSeconds,
-    preferred_general_agent: shouldPreferFastGeneralAi(text) ? "fast-general-ai" : undefined,
-    skip_zentao_llm_classification: shouldPreferFastGeneralAi(text) ? true : undefined,
-    fallback_reason: shouldPreferFastGeneralAi(text) ? "open_question_non_zentao" : undefined,
-    route_source: shouldPreferFastGeneralAi(text)
-      ? "fast_general_open_question"
-      : llmDecision ? "llm_non_zentao" : "yaml_miss",
-    llm_decision: llmDecision,
+    preferred_general_agent: "fast-general-ai",
+    skip_zentao_llm_classification: true,
+    fallback_reason: "yaml_miss_fast_general",
+    route_source: "yaml_miss_fast_general",
   }, replyFormat, userid));
 }
 
