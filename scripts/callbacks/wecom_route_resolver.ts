@@ -359,6 +359,102 @@ function extractCreateStoryArgs(text: string): Record<string, string> {
   return args;
 }
 
+function extractProductSetupName(text: string): string | undefined {
+  const patterns = [
+    /(?:^|[，,；;\s])(?:叫|名称(?:叫|是|为)?|产品名(?:叫|是|为)?|名字(?:叫|是|为)?)\s*([^\n，。,；;]+?)(?=(?:[，,；;。]\s*)?(?:顺手把模块也建好|把模块也建好|模块也建好|模块[:：]|产品负责人|测试负责人|研发负责人|描述|说明|$))/iu,
+    /(?:创建|新建|新增|建)(?:一个)?产品\s*([^\n，。,；;]+?)(?=(?:[，,；;。]\s*)?(?:顺手把模块也建好|把模块也建好|模块也建好|模块[:：]|产品负责人|测试负责人|研发负责人|描述|说明|$))/iu,
+  ];
+
+  for (const pattern of patterns) {
+    const matched = text.match(pattern);
+    const value = cleanLabeledValue(matched?.[1] ?? "");
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function extractDelimitedNames(rawValue: string): string[] {
+  return rawValue
+    .split(/[、,，]/u)
+    .map((item) => cleanLabeledValue(item) ?? "")
+    .filter(Boolean);
+}
+
+function extractProductSetupModules(text: string): string[] {
+  const patterns = [
+    /(?:顺手把模块也建好|把模块也建好|模块也建好|模块建好)\s*[:：]?\s*(.+?)(?=(?:[，,；;。]\s*)?(?:产品负责人|测试负责人|研发负责人|负责人|描述|说明|$))/iu,
+    /(?:模块)\s*[:：]\s*(.+?)(?=(?:[，,；;。]\s*)?(?:产品负责人|测试负责人|研发负责人|负责人|描述|说明|$))/iu,
+  ];
+
+  for (const pattern of patterns) {
+    const matched = text.match(pattern);
+    const modules = extractDelimitedNames(matched?.[1] ?? "");
+    if (modules.length > 0) {
+      return modules;
+    }
+  }
+
+  return [];
+}
+
+function extractRoleOwner(text: string, labels: string[]): string | undefined {
+  const labelSource = labels.map((label) => escapeRegex(label)).join("|");
+  const matched = text.match(new RegExp(`(?:${labelSource})(?:先)?(?:给|是|为|填|安排给|设置为)?\\s*([^\\s，。,；;]+)`, "iu"));
+  return cleanLabeledValue(matched?.[1] ?? "");
+}
+
+function extractCreateProductSetupArgs(text: string): Record<string, string> {
+  const args: Record<string, string> = {};
+  const name = extractProductSetupName(text);
+  if (name) {
+    args.name = name;
+  }
+
+  const modules = extractProductSetupModules(text);
+  if (modules.length > 0) {
+    args.modules = modules.join(",");
+  }
+
+  const sharedOwnerMatch = text.match(
+    /产品负责人\s*[、,，]\s*测试负责人\s*[、,，]\s*研发负责人(?:先)?(?:都)?(?:给|是|为|填|安排给|设置为)\s*([^\s，。,；;]+)/iu,
+  );
+  const sharedOwner = cleanLabeledValue(sharedOwnerMatch?.[1] ?? "");
+  if (sharedOwner) {
+    args.po = sharedOwner;
+    args.qd = sharedOwner;
+    args.rd = sharedOwner;
+  } else {
+    const po = extractRoleOwner(text, ["产品负责人", "po"]);
+    const qd = extractRoleOwner(text, ["测试负责人", "qd"]);
+    const rd = extractRoleOwner(text, ["研发负责人", "rd"]);
+    if (po) {
+      args.po = po;
+    }
+    if (qd) {
+      args.qd = qd;
+    }
+    if (rd) {
+      args.rd = rd;
+    }
+  }
+
+  const reviewer = extractRoleOwner(text, ["评审负责人", "评审人", "reviewer"]);
+  if (reviewer) {
+    args.reviewer = reviewer;
+  }
+
+  const descMatch = text.match(/(?:描述|说明)(?:是|为|[:：])\s*(.+)$/iu);
+  const desc = cleanLabeledValue(descMatch?.[1] ?? "");
+  if (desc) {
+    args.desc = desc;
+  }
+
+  return args;
+}
+
 function compactNormalizedText(text: string): string {
   return normalizeText(text).replace(/\s+/gu, "");
 }
@@ -487,6 +583,9 @@ export function extractRouteArgs(text: string, route: IntentRoute, userid: strin
   }
 
   for (const [name, expressions] of Object.entries(ENTITY_PATTERNS)) {
+    if ((route.intent === "create-product" || route.intent === "create-product-with-modules") && name === "product") {
+      continue;
+    }
     const value = extractLastMatch(text, expressions);
     if (value) {
       args[name] = value;
@@ -519,6 +618,15 @@ export function extractRouteArgs(text: string, route: IntentRoute, userid: strin
   if (route.intent === "create-story") {
     const storyArgs = extractCreateStoryArgs(text);
     for (const [key, value] of Object.entries(storyArgs)) {
+      if (!args[key] && value) {
+        args[key] = value;
+      }
+    }
+  }
+
+  if (route.intent === "create-product" || route.intent === "create-product-with-modules") {
+    const productSetupArgs = extractCreateProductSetupArgs(text);
+    for (const [key, value] of Object.entries(productSetupArgs)) {
       if (!args[key] && value) {
         args[key] = value;
       }

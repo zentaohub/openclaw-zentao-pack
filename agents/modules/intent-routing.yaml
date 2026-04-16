@@ -178,12 +178,14 @@ routes:
     script: create-product
     reply_template: create-product
     required_args: [name]
+    optional_args: [po, qd, rd, reviewer, desc]
 
   - intent: create-product-with-modules
-    triggers: ["创建产品并建模块", "初始化产品", "产品初始化", "新产品初始化"]
+    triggers: ["创建产品并建模块", "初始化产品", "产品初始化", "新产品初始化", "顺手把模块也建好", "模块也建好", "帮我建一个产品", "创建一个产品", "建一个产品"]
     script: create-product-with-modules
     reply_template: create-product-with-modules
     required_args: [name, modules]
+    optional_args: [po, qd, rd, reviewer, desc]
 
   - intent: create-product-modules
     triggers: ["创建模块", "加模块", "新建模块", "新增模块"]
