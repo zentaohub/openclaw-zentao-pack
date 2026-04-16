@@ -19,14 +19,6 @@ export interface RouteMatch {
 }
 
 const INTENT_ROUTING_PATH = path.resolve(__dirname, "../../../agents/modules/intent-routing.yaml");
-const BARE_NUMBER_EXECUTION_INTENTS = new Set([
-  "query-test-exit-readiness",
-  "query-go-live-checklist",
-  "query-acceptance-overview",
-  "query-closure-readiness",
-  "query-closure-items",
-  "query-testtasks",
-]);
 const ENTITY_PATTERNS: Record<string, RegExp[]> = {
   product: [/(?:产品|product)\s*[#：:,-]?\s*(\d+)/giu],
   project: [/(?:项目|project)\s*[#：:,-]?\s*(\d+)/giu],
@@ -589,22 +581,6 @@ export function extractRouteArgs(text: string, route: IntentRoute, userid: strin
     const value = extractLastMatch(text, expressions);
     if (value) {
       args[name] = value;
-    }
-  }
-
-  const bareNumbers = Array.from(text.matchAll(/(?<![A-Za-z0-9])(\d+)(?![A-Za-z0-9])/g), (match) => match[1]);
-  const uniqueBareNumbers = Array.from(new Set(bareNumbers));
-  if (uniqueBareNumbers.length === 1) {
-    const onlyNumber = uniqueBareNumbers[0];
-    const numericRequiredArgs = route.requiredArgs.filter((name) => ENTITY_PATTERNS[name]);
-    if (numericRequiredArgs.length === 1 && !args[numericRequiredArgs[0]]) {
-      args[numericRequiredArgs[0]] = onlyNumber;
-    }
-
-    if (BARE_NUMBER_EXECUTION_INTENTS.has(route.intent)) {
-      if (!args.execution && !args.testtask && !args.project && !args.product) {
-        args.execution = onlyNumber;
-      }
     }
   }
 
