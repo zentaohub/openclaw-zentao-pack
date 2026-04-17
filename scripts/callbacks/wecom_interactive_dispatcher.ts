@@ -13,6 +13,7 @@ import {
   getInteractiveActionDefinition,
   parseInteractiveActionKey,
 } from "./wecom_interactive_registry";
+import { clearBugCreateFlow, resolveBugCreateInteractiveAction } from "./bug_create_flow";
 import {
   validateInteractiveAction,
   type InteractiveEntityType,
@@ -389,7 +390,7 @@ export async function dispatchInteractiveCallback(
   }
 
   const definition = getInteractiveActionDefinition(parsedAction.actionKey);
-  if (!definition?.routeScript) {
+  if (!definition) {
     return buildInteractiveReply(`收到卡片交互，但该动作尚未注册执行器: ${parsedAction.actionKey}`, {
       userid,
       message_source: sourceType,
@@ -443,6 +444,114 @@ export async function dispatchInteractiveCallback(
       route_source: "interactive",
       interactive_action: parsedAction.actionKey,
       interactive_operation_id: operationId,
+    });
+  }
+
+  const bugCreateInteractive = resolveBugCreateInteractiveAction(parsedAction.actionKey, userid);
+  if (bugCreateInteractive) {
+    if (bugCreateInteractive.kind === "reply") {
+      markInteractiveOperationHandled(operationId);
+      appendInteractiveAudit({
+        userid,
+        task_id: event.taskId || buildOperationTaskId(event, parsedAction.payload),
+        action_key: parsedAction.actionKey,
+        operation_id: operationId,
+        status: "completed",
+        route_script: definition.routeScript,
+        payload: parsedAction.payload,
+      });
+      return {
+        ...bugCreateInteractive.result,
+        message_source: sourceType,
+        route_source: "interactive",
+        interactive_action: parsedAction.actionKey,
+        interactive_operation_id: operationId,
+        interactive_task_id: event.taskId,
+        interactive_selected: buildSelectionMap(event),
+      } satisfies JsonObject;
+    }
+
+    const route = findRouteByScript("create-bug");
+    if (!route) {
+      appendInteractiveAudit({
+        userid,
+        task_id: event.taskId || buildOperationTaskId(event, parsedAction.payload),
+        action_key: parsedAction.actionKey,
+        operation_id: operationId,
+        status: "failed",
+        route_script: "create-bug",
+        message: "route script not found in intent-routing.yaml",
+      });
+      return buildInteractiveReply("Bug 创建动作已识别，但未找到 create-bug 路由。", {
+        userid,
+        message_source: sourceType,
+        route_source: "interactive",
+        interactive_action: parsedAction.actionKey,
+        interactive_operation_id: operationId,
+        ok: false,
+      });
+    }
+
+    const args = {
+      ...bugCreateInteractive.routeArgs,
+      userid,
+    };
+    const scriptResult = runScript(route, args);
+    const result = {
+      ...scriptResult,
+      ok: scriptResult.ok === undefined ? true : scriptResult.ok,
+      userid,
+      message_source: sourceType,
+      route_source: "interactive",
+      intent: route.intent,
+      matched_by: `interactive:${parsedAction.actionKey}`,
+      route_script: route.script,
+      route_args: args,
+      interactive_action: parsedAction.actionKey,
+      interactive_operation_id: operationId,
+      interactive_task_id: event.taskId,
+      interactive_selected: buildSelectionMap(event),
+      reply_text: scriptResult.ok === false
+        ? buildScriptErrorReply(route, scriptResult)
+        : buildScriptResultReply(route, scriptResult, userid, sourceType, args),
+    } satisfies JsonObject;
+
+    if (scriptResult.ok === false) {
+      appendInteractiveAudit({
+        userid,
+        task_id: event.taskId || buildOperationTaskId(event, parsedAction.payload),
+        action_key: parsedAction.actionKey,
+        operation_id: operationId,
+        status: "failed",
+        route_script: route.script,
+        message: typeof scriptResult.error === "string" ? scriptResult.error : "interactive script failed",
+        payload: args,
+      });
+      return result;
+    }
+
+    clearBugCreateFlow(userid);
+    markInteractiveOperationHandled(operationId);
+    appendInteractiveAudit({
+      userid,
+      task_id: event.taskId || buildOperationTaskId(event, parsedAction.payload),
+      action_key: parsedAction.actionKey,
+      operation_id: operationId,
+      status: "completed",
+      route_script: route.script,
+      payload: args,
+    });
+    return result;
+  }
+
+  if (!definition.routeScript) {
+    return buildInteractiveReply(`收到卡片交互，但该动作尚未注册执行脚本: ${parsedAction.actionKey}`, {
+      userid,
+      message_source: sourceType,
+      route_source: "interactive",
+      interactive_action: parsedAction.actionKey,
+      interactive_operation_id: operationId,
+      ok: false,
     });
   }
 

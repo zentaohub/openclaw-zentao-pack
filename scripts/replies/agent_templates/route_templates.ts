@@ -89,11 +89,22 @@ export const routeAgentTemplates: Record<string, ReplyTemplate> = {
         buildRouteAction("查看Bug详情", WECOM_INTERACTIVE_ACTIONS.bugOpenDetail, { bug: bugId }, 1),
       ].filter((action): action is NonNullable<typeof action> => Boolean(action));
     },
-    title: () => "创建 Bug",
+    title: () => "Bug 创建成功",
+    metrics: (c) => [
+      { keyname: "Bug ID", value: getText(getPathValue(c.result, "bug_id")) },
+      { keyname: "所属产品", value: getText(getPathValue(c.result, "product")) },
+      { keyname: "影响版本", value: getText(getPathValue(c.result, "builds")) },
+      { keyname: "优先级", value: getText(getPathValue(c.result, "pri")) },
+    ],
+    quoteText: (c) => {
+      const link = getText(getPathValue(c.result, "bug_link"), "");
+      return link && link !== "-" ? `详情链接：${link}` : "可点击按钮查看 Bug 详情";
+    },
     sections: [
-      { label: "Bug", formatter: (c) => `${getText(getPathValue(c.result, "title"))} (ID:${getText(getPathValue(c.result, "bug_id"))})` },
-      { label: "归属", formatter: (c) => `产品:${getText(getPathValue(c.result, "product"))} | 版本:${getText(getPathValue(c.result, "builds"))}` },
-      { label: "说明", path: "steps" },
+      { label: "提单结果", formatter: (c) => `${getText(getPathValue(c.result, "title"))} (ID:${getText(getPathValue(c.result, "bug_id"))})` },
+      { label: "归属信息", formatter: (c) => `产品:${getText(getPathValue(c.result, "product"))} | 版本:${getText(getPathValue(c.result, "builds"))}` },
+      { label: "处理信息", formatter: (c) => `严重程度:${getText(getPathValue(c.result, "severity"))} | 优先级:${getText(getPathValue(c.result, "pri"))} | 指派:${getText(getPathValue(c.result, "assigned_to"))}` },
+      { label: "复现摘要", path: "steps" },
     ],
   }),
   "create-product": createAgentActionTemplate({

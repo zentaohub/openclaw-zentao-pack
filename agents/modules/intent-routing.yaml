@@ -252,6 +252,7 @@ routes:
     script: create-bug
     reply_template: create-bug
     required_args: [product, title, builds]
+    optional_args: [module, assigned-to, type, severity, pri, repro-steps, actual-result, expected-result, environment, browser, os, keywords, deadline, story, task, execution]
 
   - intent: assign-bug
     triggers: ["指派bug", "指派 bug", "分派bug", "分派 bug", "转交bug", "转交 bug", "把bug指给", "把 bug 指给"]

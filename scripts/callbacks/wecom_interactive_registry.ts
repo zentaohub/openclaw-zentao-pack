@@ -23,6 +23,8 @@ export const WECOM_INTERACTIVE_ACTIONS = {
   bugResolve: "bug.status.resolve",
   bugClose: "bug.status.close",
   bugStatusSubmit: "bug.status.submit",
+  bugCreateConfirm: "bug.create.confirm",
+  bugCreateCancel: "bug.create.cancel",
   storyOpenDetail: "story.detail.open",
   executionTasksOpen: "execution.tasks.open",
   executionStoriesOpen: "execution.stories.open",
@@ -124,6 +126,17 @@ export const INTERACTIVE_ACTION_DEFINITIONS: Record<string, WecomInteractiveActi
     description: "Submit a bug status change form.",
     routeScript: "update-bug-status",
     requiredPayload: ["bug"],
+  },
+  [WECOM_INTERACTIVE_ACTIONS.bugCreateConfirm]: {
+    key: WECOM_INTERACTIVE_ACTIONS.bugCreateConfirm,
+    kind: "button",
+    description: "Confirm submitting the staged bug create draft.",
+    routeScript: "create-bug",
+  },
+  [WECOM_INTERACTIVE_ACTIONS.bugCreateCancel]: {
+    key: WECOM_INTERACTIVE_ACTIONS.bugCreateCancel,
+    kind: "button",
+    description: "Cancel the staged bug create draft.",
   },
   [WECOM_INTERACTIVE_ACTIONS.storyOpenDetail]: {
     key: WECOM_INTERACTIVE_ACTIONS.storyOpenDetail,

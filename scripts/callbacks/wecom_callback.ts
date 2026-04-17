@@ -21,6 +21,7 @@ import { resolveNamedEntityArgs, resolveNamedProductArg } from "./wecom_named_en
 import { buildPendingRouteSelectionPrompt, buildRouteSelectionReply, parseRouteSelectionIndex } from "./wecom_route_selection";
 import { WecomClient } from "../shared/wecom_client";
 import { dispatchInteractiveCallback } from "./wecom_interactive_dispatcher";
+import { resolveBugCreateFlowReply } from "./bug_create_flow";
 import {
   dispatchRequirementToTestcase,
   isRequirementToTestcaseRequest,
@@ -928,6 +929,29 @@ async function main(): Promise<void> {
   }
 
   const valuesRecord = values as Record<string, string | boolean | undefined>;
+  const bugCreateFlowReply = await resolveBugCreateFlowReply({
+    text,
+    userid,
+    sourceType,
+    routes,
+    dispatchRoute: async (match, callbackText, callbackUserid, resolvedArgs) => dispatchRoute(
+      match,
+      callbackText,
+      callbackUserid,
+      payload,
+      valuesRecord,
+      resolvedArgs,
+    ),
+  });
+  if (bugCreateFlowReply) {
+    printJson(maybeWrapReplyAsTemplateCard({
+      ...bugCreateFlowReply,
+      message_source: sourceType,
+      route_source: "bug_create_flow",
+    }, replyFormat, userid));
+    return;
+  }
+
   const pendingRouteReply = await resolvePendingRouteSelectionReply(text, userid, payload, valuesRecord, routes);
   if (pendingRouteReply) {
     printJson(maybeWrapReplyAsTemplateCard({
